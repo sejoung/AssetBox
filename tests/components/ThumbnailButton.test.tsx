@@ -35,7 +35,7 @@ describe("ThumbnailButton", () => {
       <ThumbnailButton
         viewerRef={mockRef as unknown as React.RefObject<Viewer3DHandle>}
         assetPath="/models/test.glb"
-      />,
+      />
     );
 
     fireEvent.click(screen.getByRole("button"));

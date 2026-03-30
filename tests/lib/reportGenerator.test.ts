@@ -70,9 +70,7 @@ describe("generateHTMLReport", () => {
   it("uses warning color for warning severity", () => {
     const warningValidation: ValidationResult = {
       overall: "warning",
-      items: [
-        { label: "Tris", value: "50K", severity: "warning", category: "geometry" },
-      ],
+      items: [{ label: "Tris", value: "50K", severity: "warning", category: "geometry" }],
       groups: [
         {
           category: "geometry",
@@ -88,9 +86,7 @@ describe("generateHTMLReport", () => {
   it("uses bad color for bad severity", () => {
     const badValidation: ValidationResult = {
       overall: "bad",
-      items: [
-        { label: "Tris", value: "200K", severity: "bad", category: "geometry" },
-      ],
+      items: [{ label: "Tris", value: "200K", severity: "bad", category: "geometry" }],
       groups: [
         {
           category: "geometry",

@@ -12,9 +12,7 @@ const defaultProps = {
 
 describe("ViewerToolbar", () => {
   it("renders nothing when hasModel is false", () => {
-    const { container } = render(
-      <ViewerToolbar {...defaultProps} hasModel={false} />,
-    );
+    const { container } = render(<ViewerToolbar {...defaultProps} hasModel={false} />);
     expect(container.innerHTML).toBe("");
   });
 
@@ -39,27 +37,21 @@ describe("ViewerToolbar", () => {
 
   it("calls onViewModeChange when a view mode button is clicked", () => {
     const onViewModeChange = vi.fn();
-    render(
-      <ViewerToolbar {...defaultProps} onViewModeChange={onViewModeChange} />,
-    );
+    render(<ViewerToolbar {...defaultProps} onViewModeChange={onViewModeChange} />);
     fireEvent.click(screen.getByText("Normals"));
     expect(onViewModeChange).toHaveBeenCalledWith("normals");
   });
 
   it("renders 3 background color buttons", () => {
     render(<ViewerToolbar {...defaultProps} />);
-    const bgButtons = ["dark", "neutral", "light"].map((mode) =>
-      screen.getByTitle(mode),
-    );
+    const bgButtons = ["dark", "neutral", "light"].map((mode) => screen.getByTitle(mode));
     expect(bgButtons).toHaveLength(3);
     bgButtons.forEach((btn) => expect(btn).toBeInTheDocument());
   });
 
   it("calls onBgModeChange when a background button is clicked", () => {
     const onBgModeChange = vi.fn();
-    render(
-      <ViewerToolbar {...defaultProps} onBgModeChange={onBgModeChange} />,
-    );
+    render(<ViewerToolbar {...defaultProps} onBgModeChange={onBgModeChange} />);
     fireEvent.click(screen.getByTitle("light"));
     expect(onBgModeChange).toHaveBeenCalledWith("light");
   });

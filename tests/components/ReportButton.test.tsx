@@ -47,7 +47,6 @@ describe("ReportButton", () => {
     fireEvent.click(screen.getByRole("button", { name: /report/i }));
 
     await waitFor(() => {
-
       expect(invoke).toHaveBeenCalledWith("save_text_file", {
         content: expect.any(String),
         outputPath: "/models/test_report.html",
