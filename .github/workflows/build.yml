@@ -3,27 +3,77 @@ name: Build
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
   pull_request:
     branches: [main]
-  workflow_dispatch:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
 
 jobs:
+  # Fast check — runs on every PR and push (~1 min)
+  check:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Version consistency check
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          TAURI_VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          CARGO_VER=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "package.json: $PKG_VER"
+          echo "tauri.conf.json: $TAURI_VER"
+          echo "Cargo.toml: $CARGO_VER"
+          if [ "$PKG_VER" != "$TAURI_VER" ] || [ "$PKG_VER" != "$CARGO_VER" ]; then
+            echo "::error::Version mismatch! All versions must match."
+            exit 1
+          fi
+
+  # App build — only on main push, after check passes
   build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
-            label: macOS (Apple Silicon)
+            label: macOS-ARM
           - platform: macos-latest
             target: x86_64-apple-darwin
-            label: macOS (Intel)
+            label: macOS-Intel
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             label: Windows
 
-    name: ${{ matrix.label }}
+    name: Build (${{ matrix.label }})
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -48,15 +98,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Run tests
-        run: npm test
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -70,7 +111,8 @@ jobs:
           name: assetbox-${{ matrix.target }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
           if-no-files-found: ignore
+          retention-days: 7

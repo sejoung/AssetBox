@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AssetBox — Download</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    color: #eaeaea;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 720px;
+    width: 100%;
+    padding: 60px 24px;
+    text-align: center;
+  }
+
+  .logo {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 20px;
+    border-radius: 20px;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  h1 span { color: #e94560; }
+
+  .tagline {
+    color: #a0a0b0;
+    font-size: 1.1rem;
+    margin-bottom: 40px;
+  }
+
+  .version-badge {
+    display: inline-block;
+    background: rgba(233, 69, 96, 0.15);
+    color: #e94560;
+    font-family: monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 40px;
+  }
+
+  .download-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: #e94560;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 16px 40px;
+    border-radius: 14px;
+    text-decoration: none;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+
+  .download-primary:hover {
+    background: #ff6b81;
+    transform: translateY(-1px);
+  }
+
+  .download-primary svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .os-detected {
+    color: #707080;
+    font-size: 0.85rem;
+    margin-bottom: 48px;
+  }
+
+  .divider {
+    width: 60px;
+    height: 1px;
+    background: #2a2a4a;
+    margin: 0 auto 40px;
+  }
+
+  h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #a0a0b0;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+  }
+
+  .download-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 60px;
+  }
+
+  .download-card {
+    background: rgba(22, 33, 62, 0.8);
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 20px;
+    text-decoration: none;
+    color: #eaeaea;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .download-card:hover {
+    border-color: #e94560;
+    background: rgba(233, 69, 96, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .download-card .os-icon {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+  }
+
+  .download-card .os-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+
+  .download-card .os-arch {
+    color: #707080;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+
+  .download-card .os-format {
+    color: #a0a0b0;
+    font-size: 0.75rem;
+  }
+
+  .features {
+    text-align: left;
+    margin-bottom: 60px;
+  }
+
+  .features ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .features li {
+    color: #a0a0b0;
+    font-size: 0.9rem;
+    padding-left: 20px;
+    position: relative;
+  }
+
+  .features li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 8px;
+    height: 8px;
+    background: #e94560;
+    border-radius: 50%;
+  }
+
+  .footer {
+    color: #505060;
+    font-size: 0.8rem;
+    padding: 30px 0;
+    border-top: 1px solid #2a2a4a;
+    width: 100%;
+    max-width: 720px;
+    text-align: center;
+  }
+
+  .footer a {
+    color: #e94560;
+    text-decoration: none;
+  }
+
+  .footer a:hover { text-decoration: underline; }
+
+  .no-release {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    margin-bottom: 48px;
+    display: none;
+  }
+
+  @media (max-width: 500px) {
+    .features ul { grid-template-columns: 1fr; }
+    .download-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <img class="logo" src="https://raw.githubusercontent.com/sejoung/AssetBox/main/src-tauri/icons/icon.png" alt="AssetBox" />
+    <h1>Asset<span>Box</span></h1>
+    <p class="tagline">3D Asset Quick Viewer &amp; Organizer</p>
+
+    <div class="version-badge" id="version">Loading...</div>
+
+    <!-- Auto-detected OS download -->
+    <div>
+      <a class="download-primary" id="primary-download" href="#">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        <span id="primary-label">Download</span>
+      </a>
+      <p class="os-detected" id="os-detected"></p>
+    </div>
+
+    <div class="no-release" id="no-release">
+      No releases available yet. Check back soon or build from source.
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- All downloads -->
+    <h2>All Downloads</h2>
+    <div class="download-grid" id="download-grid"></div>
+
+    <!-- Features -->
+    <div class="features">
+      <h2>Features</h2>
+      <ul>
+        <li>FBX / GLB / OBJ instant preview</li>
+        <li>Wireframe, Normals, UV view modes</li>
+        <li>15+ mesh quality validations</li>
+        <li>Texture auto-matching</li>
+        <li>Thumbnail generation</li>
+        <li>HTML validation report</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="https://github.com/sejoung/AssetBox">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://github.com/sejoung/AssetBox/releases">All Releases</a> &nbsp;·&nbsp;
+    Apache License 2.0
+  </div>
+
+<script>
+const REPO = "sejoung/AssetBox";
+
+const PLATFORMS = [
+  { key: "mac-arm",   os: "macOS",   arch: "Apple Silicon", icon: "\uD83C\uDF4E", format: ".dmg",  match: (n) => /\.dmg$/.test(n) && /aarch64/.test(n) },
+  { key: "mac-intel", os: "macOS",   arch: "Intel",         icon: "\uD83C\uDF4E", format: ".dmg",  match: (n) => /\.dmg$/.test(n) && /x86_64/.test(n) },
+  { key: "win",       os: "Windows", arch: "x64",           icon: "\uD83E\uDE9F", format: ".msi",  match: (n) => /\.msi$/.test(n) },
+  { key: "win-exe",   os: "Windows", arch: "x64",           icon: "\uD83E\uDE9F", format: ".exe",  match: (n) => /\.exe$/.test(n) },
+];
+
+function detectOS() {
+  const ua = navigator.userAgent;
+  if (/Mac/.test(ua)) {
+    // Check Apple Silicon via WebGL renderer
+    try {
+      const canvas = document.createElement("canvas");
+      const gl = canvas.getContext("webgl");
+      const debugInfo = gl?.getExtension("WEBGL_debug_renderer_info");
+      const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "";
+      if (/Apple/.test(renderer)) return "mac-arm";
+    } catch {}
+    return "mac-arm"; // Default to ARM for modern Macs
+  }
+  if (/Win/.test(ua)) return "win";
+  return null;
+}
+
+async function loadRelease() {
+  const versionEl = document.getElementById("version");
+  const primaryBtn = document.getElementById("primary-download");
+  const primaryLabel = document.getElementById("primary-label");
+  const osDetected = document.getElementById("os-detected");
+  const grid = document.getElementById("download-grid");
+  const noRelease = document.getElementById("no-release");
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
+    if (!res.ok) throw new Error("No release");
+
+    const release = await res.json();
+    const tag = release.tag_name;
+    const assets = release.assets || [];
+
+    versionEl.textContent = tag;
+
+    // Build download cards
+    const available = [];
+    for (const platform of PLATFORMS) {
+      const asset = assets.find((a) => platform.match(a.name));
+      if (asset) {
+        available.push({ ...platform, url: asset.browser_download_url, size: asset.size });
+      }
+    }
+
+    if (available.length === 0) {
+      noRelease.style.display = "block";
+      noRelease.textContent = `${tag} is released but no downloadable files yet.`;
+      primaryBtn.style.display = "none";
+      return;
+    }
+
+    // Render grid
+    grid.innerHTML = available.map((p) => `
+      <a class="download-card" href="${p.url}">
+        <span class="os-icon">${p.icon}</span>
+        <span class="os-name">${p.os}</span>
+        <span class="os-arch">${p.arch}</span>
+        <span class="os-format">${p.format} · ${(p.size / 1024 / 1024).toFixed(1)} MB</span>
+      </a>
+    `).join("");
+
+    // Auto-detect primary download
+    const userOS = detectOS();
+    const primary = available.find((p) => p.key === userOS) || available[0];
+    primaryBtn.href = primary.url;
+    primaryLabel.textContent = `Download for ${primary.os}`;
+    osDetected.textContent = `${primary.arch} · ${primary.format} · ${(primary.size / 1024 / 1024).toFixed(1)} MB`;
+
+  } catch {
+    versionEl.textContent = "unreleased";
+    primaryBtn.style.display = "none";
+    noRelease.style.display = "block";
+  }
+}
+
+loadRelease();
+</script>
+</body>
+</html>
