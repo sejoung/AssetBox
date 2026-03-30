@@ -21,6 +21,9 @@ on:
       - "LICENSE"
       - ".gitignore"
 
+permissions:
+  contents: write
+
 jobs:
   # Fast check — runs on every PR and push (~1 min)
   check:
