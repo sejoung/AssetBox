@@ -12,7 +12,13 @@ import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { loadModel, type LoadedModel } from "./ModelLoader";
 import { ViewerToolbar, type ViewMode } from "./ViewerToolbar";
-import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP, BG_COLORS, type BgMode } from "../lib/overlayStyle";
+import {
+  OVERLAY_BG,
+  OVERLAY_BORDER,
+  OVERLAY_BACKDROP,
+  BG_COLORS,
+  type BgMode,
+} from "../lib/overlayStyle";
 
 // ── Normals visualization ──
 

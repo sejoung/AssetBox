@@ -87,7 +87,19 @@
 
 ---
 
-## Getting Started
+## Download
+
+[Download the latest release](https://github.com/sejoung/AssetBox/releases/latest) or visit the [download page](https://sejoung.github.io/AssetBox/).
+
+> **Note:** AssetBox is open-source and not code-signed. Your OS will show a security warning on first launch.
+>
+> **macOS:** Right-click the app → "Open" → click "Open" in the dialog
+>
+> **Windows:** Click "More info" → "Run anyway" in SmartScreen
+
+---
+
+## Getting Started (Build from Source)
 
 ### Prerequisites
 

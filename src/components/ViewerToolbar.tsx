@@ -1,9 +1,4 @@
-import {
-  OVERLAY_BG,
-  OVERLAY_BORDER,
-  OVERLAY_BACKDROP,
-  type BgMode,
-} from "../lib/overlayStyle";
+import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP, type BgMode } from "../lib/overlayStyle";
 
 export type ViewMode = "default" | "wireframe" | "normals" | "uv";
 
@@ -118,4 +113,3 @@ export function ViewerToolbar({
     </div>
   );
 }
-
