@@ -1,0 +1,64 @@
+import { useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import type { Viewer3DHandle } from "./Viewer3D";
+import { OVERLAY_BACKDROP } from "../lib/overlayStyle";
+
+interface ThumbnailButtonProps {
+  viewerRef: React.RefObject<Viewer3DHandle | null>;
+  assetPath: string | null;
+  disabled?: boolean;
+}
+
+export function ThumbnailButton({ viewerRef, assetPath, disabled }: ThumbnailButtonProps) {
+  const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
+
+  const handleGenerate = useCallback(async () => {
+    if (!viewerRef.current || !assetPath) return;
+    setStatus("saving");
+    try {
+      const dataUrl = viewerRef.current.captureScreenshot();
+      if (!dataUrl) throw new Error("Failed to capture screenshot");
+      const thumbnailPath = assetPath.replace(/\.[^.]+$/, "_thumbnail.png");
+      await invoke("save_thumbnail", { imageData: dataUrl, outputPath: thumbnailPath });
+      setStatus("done");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch (err) {
+      console.error("Thumbnail generation failed:", err);
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  }, [viewerRef, assetPath]);
+
+  const config = {
+    idle: { label: "Thumbnail", bg: "#e94560" },
+    saving: { label: "...", bg: "#e94560" },
+    done: { label: "Saved!", bg: "#4ade80" },
+    error: { label: "Failed", bg: "#f87171" },
+  }[status];
+
+  return (
+    <button
+      onClick={handleGenerate}
+      disabled={disabled || status === "saving" || !assetPath}
+      className="flex items-center justify-center gap-2.5 min-w-[130px] px-6 py-3.5 rounded-xl text-sm font-semibold leading-relaxed whitespace-nowrap transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:brightness-110"
+      style={{ backgroundColor: config.bg, color: "white", backdropFilter: OVERLAY_BACKDROP }}
+    >
+      {status === "idle" && (
+        <svg
+          className="w-4 h-4 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
+          />
+        </svg>
+      )}
+      {config.label}
+    </button>
+  );
+}
