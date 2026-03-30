@@ -283,6 +283,19 @@
     color: #c0c0c0;
   }
 
+  .install-code {
+    background: #0d1117;
+    color: #4ade80;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.85rem;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid #2a2a4a;
+    margin: 10px 0 14px;
+    overflow-x: auto;
+    user-select: all;
+  }
+
   @media (max-width: 500px) {
     .features ul { grid-template-columns: 1fr; }
     .download-grid { grid-template-columns: 1fr; }
@@ -348,12 +361,14 @@
         <ol>
           <li>Download the <strong>.dmg</strong> file and open it</li>
           <li>Drag <strong>AssetBox</strong> to the Applications folder</li>
-          <li>First launch: right-click the app and select <strong>"Open"</strong></li>
-          <li>"Unidentified developer" warning will appear — click <strong>"Open"</strong></li>
-          <li>This is only needed once. After that the app opens normally.</li>
+          <li>Open <strong>Terminal</strong> and run:</li>
+        </ol>
+        <pre class="install-code">xattr -cr /Applications/AssetBox.app</pre>
+        <ol start="4">
+          <li>Now open AssetBox normally from Applications</li>
         </ol>
         <div class="install-alt">
-          <strong>Alternative:</strong> System Settings → Privacy & Security → scroll down → click "Open Anyway"
+          <strong>Why?</strong> macOS blocks unsigned apps with "damaged" error. The command above removes the quarantine flag. This is safe for open-source apps you trust.
         </div>
       </div>
 

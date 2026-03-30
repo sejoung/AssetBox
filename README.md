@@ -93,7 +93,10 @@
 
 > **Note:** AssetBox is open-source and not code-signed. Your OS will show a security warning on first launch.
 >
-> **macOS:** Right-click the app → "Open" → click "Open" in the dialog
+> **macOS:** After installing, open Terminal and run:
+> ```bash
+> xattr -cr /Applications/AssetBox.app
+> ```
 >
 > **Windows:** Click "More info" → "Run anyway" in SmartScreen
 

@@ -9,7 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  # Verify the tag version matches the code
   verify:
     name: Verify version
     runs-on: ubuntu-latest
@@ -26,9 +25,23 @@ jobs:
             exit 1
           fi
 
-  # Try to download artifacts from latest main build
-  release:
+  create-release:
+    name: Create Release
     needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create GitHub Release with auto notes
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "AssetBox ${{ github.ref_name }}"
+          draft: false
+          generate_release_notes: true
+
+  build:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -43,68 +56,40 @@ jobs:
             target: x86_64-pc-windows-msvc
             label: Windows
 
-    name: Release (${{ matrix.label }})
+    name: Build (${{ matrix.label }})
     runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v5
 
-      # Try downloading pre-built artifacts from the latest main build
-      - name: Check for pre-built artifacts
-        id: cached
-        uses: actions/download-artifact@v5
-        with:
-          name: assetbox-${{ matrix.target }}
-          path: pre-built
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.repository.default_branch }}
-        continue-on-error: true
-
-      # If no cached artifacts, build from scratch
       - name: Setup Node.js
-        if: steps.cached.outcome == 'failure'
         uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
 
       - name: Setup Rust
-        if: steps.cached.outcome == 'failure'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Rust cache
-        if: steps.cached.outcome == 'failure'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
       - name: Install dependencies
-        if: steps.cached.outcome == 'failure'
         run: npm ci
 
-      - name: Build and release
-        if: steps.cached.outcome == 'failure'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "AssetBox ${{ github.ref_name }}"
-          releaseBody: "See the changelog for details."
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
+      - name: Build Tauri app
+        run: npm run build -- --target ${{ matrix.target }}
 
-      - name: Create release from cached artifacts
-        if: steps.cached.outcome == 'success'
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "AssetBox ${{ github.ref_name }}"
-          body: "See the changelog for details."
-          draft: true
-          files: pre-built/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
