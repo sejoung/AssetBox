@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "release": "node scripts/bump-version.js patch",
     "release:minor": "node scripts/bump-version.js minor",
-    "release:major": "node scripts/bump-version.js major"
+    "release:major": "node scripts/bump-version.js major",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -57,10 +58,18 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "husky": "^9.1.7",
     "jsdom": "^29.0.1",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
     "typescript-eslint": "^8.57.2",
     "vitest": "^4.1.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
   }
 }
