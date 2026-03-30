@@ -11,8 +11,8 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { loadModel, type LoadedModel } from "./ModelLoader";
-import { ViewerToolbar, BG_COLORS, type ViewMode, type BgMode } from "./ViewerToolbar";
-import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP } from "../lib/overlayStyle";
+import { ViewerToolbar, type ViewMode } from "./ViewerToolbar";
+import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP, BG_COLORS, type BgMode } from "../lib/overlayStyle";
 
 // ── Normals visualization ──
 
@@ -283,11 +283,16 @@ function ModelDisplay({ model, viewMode }: ModelDisplayProps) {
     perspCamera.updateProjectionMatrix();
 
     if (controls) {
-      const orbitControls = controls as any;
+      const orbitControls = controls as THREE.EventDispatcher & {
+        target: THREE.Vector3;
+        minDistance: number;
+        maxDistance: number;
+        zoomSpeed: number;
+        update: () => void;
+      };
       orbitControls.target.copy(center);
       orbitControls.minDistance = maxDim * 0.05;
       orbitControls.maxDistance = maxDim * 20;
-      // Faster zoom — scale speed to model size
       orbitControls.zoomSpeed = Math.max(1.5, Math.min(5, maxDim * 0.3));
       orbitControls.update();
     }

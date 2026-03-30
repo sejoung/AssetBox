@@ -1,7 +1,11 @@
-import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP } from "../lib/overlayStyle";
+import {
+  OVERLAY_BG,
+  OVERLAY_BORDER,
+  OVERLAY_BACKDROP,
+  type BgMode,
+} from "../lib/overlayStyle";
 
 export type ViewMode = "default" | "wireframe" | "normals" | "uv";
-export type BgMode = "dark" | "light" | "neutral";
 
 interface ViewerToolbarProps {
   viewMode: ViewMode;
@@ -115,8 +119,3 @@ export function ViewerToolbar({
   );
 }
 
-export const BG_COLORS: Record<BgMode, string> = {
-  dark: "#1a1a2e",
-  neutral: "#404040",
-  light: "#d0d0d0",
-};

@@ -20,7 +20,7 @@ function App() {
     const file = files[0];
     if (file) {
       setError(null);
-      const path = (file as any).path ?? file.name;
+      const path = (file as File & { path?: string }).path ?? file.name;
       setFilePath(path);
     }
   }, []);
