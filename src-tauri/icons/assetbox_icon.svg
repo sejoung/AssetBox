@@ -1,0 +1,42 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="128" x2="864" y2="896" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171A22"/>
+      <stop offset="1" stop-color="#0F1218"/>
+    </linearGradient>
+    <linearGradient id="cubeTop" x1="512" y1="278" x2="512" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8EE3FF"/>
+      <stop offset="1" stop-color="#55B9F3"/>
+    </linearGradient>
+    <linearGradient id="cubeLeft" x1="334" y1="390" x2="512" y2="716" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4FA2F2"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="cubeRight" x1="690" y1="390" x2="512" y2="716" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6AD4FF"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <filter id="shadow" x="220" y="226" width="584" height="564" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect x="96" y="96" width="832" height="832" rx="208" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <!-- Outer "box" frame -->
+    <path d="M512 258L722 378V638L512 758L302 638V378L512 258Z"
+          stroke="#E7F7FF" stroke-opacity="0.92" stroke-width="28" stroke-linejoin="round"/>
+
+    <!-- Inner 3D asset cube -->
+    <path d="M512 322L648 400L512 478L376 400L512 322Z" fill="url(#cubeTop)"/>
+    <path d="M376 400L512 478V638L376 560V400Z" fill="url(#cubeLeft)"/>
+    <path d="M648 400L512 478V638L648 560V400Z" fill="url(#cubeRight)"/>
+
+    <!-- Viewer corner accents -->
+    <path d="M274 328V266H336" stroke="#E7F7FF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M688 266H750V328" stroke="#E7F7FF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M750 688V750H688" stroke="#E7F7FF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M336 750H274V688" stroke="#E7F7FF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
