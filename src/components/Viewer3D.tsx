@@ -22,7 +22,18 @@ import {
 
 // ── Normals visualization ──
 
-function NormalsHelper({ model }: { model: THREE.Group }) {
+interface FlippedNormalInfo {
+  center: THREE.Vector3;
+  count: number;
+}
+
+function NormalsHelper({
+  model,
+  onFlippedInfo,
+}: {
+  model: THREE.Group;
+  onFlippedInfo?: (info: FlippedNormalInfo | null) => void;
+}) {
   const groupRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -32,6 +43,22 @@ function NormalsHelper({ model }: { model: THREE.Group }) {
     // Clear previous
     while (group.children.length) group.remove(group.children[0]);
 
+    // Replace mesh materials with flat dark so normal points stand out
+    const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        originals.set(child, child.material);
+        child.material = new THREE.MeshBasicMaterial({
+          color: 0x1a1a2e,
+          transparent: true,
+          opacity: 0.4,
+        });
+      }
+    });
+
+    const allNormalVerts: number[] = [];
+    const allFlippedVerts: number[] = [];
+
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
       const geo = child.geometry;
@@ -39,14 +66,10 @@ function NormalsHelper({ model }: { model: THREE.Group }) {
       const norm = geo.attributes.normal;
       if (!pos || !norm) return;
 
-      const vertices: number[] = [];
-      const colors: number[] = [];
-      const scale = 0.05;
-
       // Compute face normals to detect flipped ones
       const index = geo.index;
       const triCount = index ? index.count / 3 : pos.count / 3;
-      const flippedVerts = new Set<number>();
+      const flippedVertSet = new Set<number>();
 
       const vA = new THREE.Vector3(),
         vB = new THREE.Vector3(),
@@ -86,53 +109,74 @@ function NormalsHelper({ model }: { model: THREE.Group }) {
         if (avgN.lengthSq() < 1e-8) continue;
 
         if (faceN.dot(avgN) < 0) {
-          flippedVerts.add(a);
-          flippedVerts.add(b);
-          flippedVerts.add(c);
+          flippedVertSet.add(a);
+          flippedVertSet.add(b);
+          flippedVertSet.add(c);
         }
       }
 
-      // Build normal lines
+      // Separate normal vs flipped vertex positions
       const worldMatrix = child.matrixWorld;
-      const normalMatrix = new THREE.Matrix3().getNormalMatrix(worldMatrix);
       const p = new THREE.Vector3();
-      const n = new THREE.Vector3();
 
       for (let i = 0; i < pos.count; i++) {
         p.fromBufferAttribute(pos, i).applyMatrix4(worldMatrix);
-        n.fromBufferAttribute(norm, i).applyMatrix3(normalMatrix).normalize();
-
-        vertices.push(p.x, p.y, p.z, p.x + n.x * scale, p.y + n.y * scale, p.z + n.z * scale);
-
-        const isFlipped = flippedVerts.has(i);
-        const r = isFlipped ? 1 : 0.3;
-        const g = isFlipped ? 0.2 : 0.6;
-        const b = isFlipped ? 0.2 : 1;
-        colors.push(r, g, b, r, g, b);
+        if (flippedVertSet.has(i)) {
+          allFlippedVerts.push(p.x, p.y, p.z);
+        } else {
+          allNormalVerts.push(p.x, p.y, p.z);
+        }
       }
-
-      const lineGeo = new THREE.BufferGeometry();
-      lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-      lineGeo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-      const lineMat = new THREE.LineBasicMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.7,
-      });
-      group.add(new THREE.LineSegments(lineGeo, lineMat));
     });
 
+    // Normal vertices — small blue points
+    if (allNormalVerts.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(allNormalVerts, 3));
+      const mat = new THREE.PointsMaterial({ color: 0x0066ff, size: 2, sizeAttenuation: false });
+      group.add(new THREE.Points(geo, mat));
+    }
+
+    // Flipped vertices — large red points
+    if (allFlippedVerts.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(allFlippedVerts, 3));
+      const mat = new THREE.PointsMaterial({ color: 0xff0000, size: 6, sizeAttenuation: false });
+      group.add(new THREE.Points(geo, mat));
+
+      // Compute center of flipped vertices
+      const center = new THREE.Vector3();
+      const flippedCount = allFlippedVerts.length / 3;
+      for (let i = 0; i < allFlippedVerts.length; i += 3) {
+        center.x += allFlippedVerts[i];
+        center.y += allFlippedVerts[i + 1];
+        center.z += allFlippedVerts[i + 2];
+      }
+      center.divideScalar(flippedCount);
+      onFlippedInfo?.({ center, count: flippedCount });
+    } else {
+      onFlippedInfo?.(null);
+    }
+
     return () => {
+      // Restore original materials
+      originals.forEach((mat, mesh) => {
+        if (mesh.material instanceof THREE.MeshBasicMaterial) {
+          mesh.material.dispose();
+        }
+        mesh.material = mat;
+      });
       while (group.children.length) {
         const child = group.children[0];
-        if (child instanceof THREE.LineSegments) {
+        if (child instanceof THREE.Points) {
           child.geometry.dispose();
           (child.material as THREE.Material).dispose();
         }
         group.remove(child);
       }
+      onFlippedInfo?.(null);
     };
-  }, [model]);
+  }, [model, onFlippedInfo]);
 
   return <group ref={groupRef} />;
 }
@@ -256,21 +300,58 @@ function WireframeMode({ model }: { model: THREE.Group }) {
   return null;
 }
 
+// ── Camera focus helper (moves camera to a target point) ──
+
+function CameraFocus({ target }: { target: THREE.Vector3 }) {
+  const { camera, controls } = useThree();
+
+  useEffect(() => {
+    const distance = 1.5;
+    camera.position.set(
+      target.x + distance * 0.5,
+      target.y + distance * 0.4,
+      target.z + distance * 0.8
+    );
+    camera.lookAt(target);
+
+    if (controls) {
+      const orbitControls = controls as THREE.EventDispatcher & {
+        target: THREE.Vector3;
+        update: () => void;
+      };
+      orbitControls.target.copy(target);
+      orbitControls.update();
+    }
+  }, [target, camera, controls]);
+
+  return null;
+}
+
 // ── Model display ──
 
 interface ModelDisplayProps {
   model: THREE.Group;
   viewMode: ViewMode;
+  onFlippedInfo?: (info: FlippedNormalInfo | null) => void;
+  focusTarget?: THREE.Vector3 | null;
+  focusModelRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-function ModelDisplay({ model, viewMode }: ModelDisplayProps) {
+function ModelDisplay({
+  model,
+  viewMode,
+  onFlippedInfo,
+  focusTarget,
+  focusModelRef,
+}: ModelDisplayProps) {
   const { camera, controls } = useThree();
-  const groupRef = useRef<THREE.Group>(null);
+  const wrapperRef = useRef<THREE.Group>(null);
 
-  useEffect(() => {
-    if (!groupRef.current) return;
+  const focusOnModel = useCallback(() => {
+    if (!wrapperRef.current) return;
 
-    const box = new THREE.Box3().setFromObject(groupRef.current);
+    // Use the wrapper ref which includes Center's transform
+    const box = new THREE.Box3().setFromObject(wrapperRef.current);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
@@ -302,17 +383,28 @@ function ModelDisplay({ model, viewMode }: ModelDisplayProps) {
       orbitControls.zoomSpeed = Math.max(1.5, Math.min(5, maxDim * 0.3));
       orbitControls.update();
     }
-  }, [model, camera, controls]);
+  }, [camera, controls]);
+
+  useEffect(() => {
+    focusOnModel();
+  }, [model, focusOnModel]);
+
+  useEffect(() => {
+    if (focusModelRef) {
+      focusModelRef.current = focusOnModel;
+    }
+  }, [focusModelRef, focusOnModel]);
 
   return (
-    <Center>
-      <group ref={groupRef}>
+    <group ref={wrapperRef}>
+      <Center>
         <primitive object={model} />
         {viewMode === "wireframe" && <WireframeMode model={model} />}
-        {viewMode === "normals" && <NormalsHelper model={model} />}
+        {viewMode === "normals" && <NormalsHelper model={model} onFlippedInfo={onFlippedInfo} />}
         {viewMode === "uv" && <UVOverlay model={model} />}
-      </group>
-    </Center>
+      </Center>
+      {focusTarget && <CameraFocus target={focusTarget} />}
+    </group>
   );
 }
 
@@ -361,7 +453,13 @@ function ScreenshotHelper({
 
 // ── Keyboard handler ──
 
-function KeyboardHandler({ onViewMode }: { onViewMode: (mode: ViewMode) => void }) {
+function KeyboardHandler({
+  onViewMode,
+  onFocusModel,
+}: {
+  onViewMode: (mode: ViewMode) => void;
+  onFocusModel: () => void;
+}) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -378,11 +476,17 @@ function KeyboardHandler({ onViewMode }: { onViewMode: (mode: ViewMode) => void 
         case "4":
           onViewMode("uv");
           break;
+        case "f":
+        case "F":
+          if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+            onFocusModel();
+          }
+          break;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onViewMode]);
+  }, [onViewMode, onFocusModel]);
 
   return null;
 }
@@ -409,8 +513,15 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const [viewMode, setViewMode] = useState<ViewMode>("default");
   const [activeViewMode, setActiveViewMode] = useState<ViewMode>("default");
   const [bgMode, setBgMode] = useState<BgMode>("dark");
+  const [flippedInfo, setFlippedInfo] = useState<FlippedNormalInfo | null>(null);
+  const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
   const gridRef = useRef<THREE.Object3D | null>(null);
   const screenshotRef = useRef<(() => string | null) | null>(null);
+  const focusModelRef = useRef<(() => void) | null>(null);
+
+  const handleFocusModel = useCallback(() => {
+    focusModelRef.current?.();
+  }, []);
 
   useImperativeHandle(ref, () => ({
     captureScreenshot() {
@@ -461,6 +572,8 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
     setLoadingMessage("Loading model...");
     setViewMode("default");
     setActiveViewMode("default");
+    setFlippedInfo(null);
+    setFocusTarget(null);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -538,7 +651,15 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         <directionalLight position={[-3, 2, -3]} intensity={0.3} />
 
         <Suspense fallback={null}>
-          {model && <ModelDisplay model={model} viewMode={activeViewMode} />}
+          {model && (
+            <ModelDisplay
+              model={model}
+              viewMode={activeViewMode}
+              onFlippedInfo={setFlippedInfo}
+              focusTarget={focusTarget}
+              focusModelRef={focusModelRef}
+            />
+          )}
           <Environment preset="studio" background={false} />
         </Suspense>
 
@@ -556,7 +677,47 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         hasModel={!!model}
       />
 
-      <KeyboardHandler onViewMode={handleViewMode} />
+      {activeViewMode === "normals" && flippedInfo && (
+        <button
+          onClick={() => setFocusTarget(flippedInfo.center.clone())}
+          style={{
+            position: "absolute",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "rgba(255, 0, 0, 0.85)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "8px 16px",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+          Flipped Normals ({flippedInfo.count})
+        </button>
+      )}
+
+      <KeyboardHandler onViewMode={handleViewMode} onFocusModel={handleFocusModel} />
     </div>
   );
 });

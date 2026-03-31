@@ -256,12 +256,23 @@ function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
   };
 }
 
+export function convertFilePath(filePath: string): string {
+  // On Windows, paths like C:\Users\foo\model.fbx need to be converted
+  // to asset://localhost/C%3A/Users/foo/model.fbx
+  // encodeURIComponent encodes too aggressively (slashes, colons),
+  // so we encode only each path segment individually.
+  const normalized = filePath.replace(/\\/g, "/");
+  const encoded = normalized
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `asset://localhost/${encoded}`;
+}
+
 export function loadModel(filePath: string): Promise<LoadedModel> {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
-  const url = filePath.startsWith("http")
-    ? filePath
-    : `asset://localhost/${encodeURIComponent(filePath)}`;
+  const url = filePath.startsWith("http") ? filePath : convertFilePath(filePath);
 
   return new Promise((resolve, reject) => {
     const onLoad = (object: THREE.Group) => {
