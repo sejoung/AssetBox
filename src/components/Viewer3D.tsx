@@ -11,6 +11,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { loadModel, type LoadedModel } from "./ModelLoader";
+import type { RetopoDiagInfo } from "../types/asset";
 import { ViewerToolbar, type ViewMode } from "./ViewerToolbar";
 import {
   OVERLAY_BG,
@@ -226,157 +227,64 @@ function NormalMapMode({ model }: { model: THREE.Group }) {
 
 // ── Retopology diagnosis (density heatmap) ──
 
-export interface RetopoDiagInfo {
-  totalTris: number;
-  avgArea: number;
-  minArea: number;
-  maxArea: number;
-  densityRatio: number; // max/min area ratio — higher = more imbalanced
-  thinTriPercent: number; // % of triangles with bad aspect ratio
-  overDensePercent: number; // % of triangles much smaller than average
-  underDensePercent: number; // % of triangles much larger than average
-  needsRetopo: boolean;
-  reasons: string[];
-}
-
-function analyzeRetopo(model: THREE.Group): {
-  info: RetopoDiagInfo;
-  meshData: { mesh: THREE.Mesh; triAreas: number[]; triAspects: number[] }[];
-} {
-  const meshData: { mesh: THREE.Mesh; triAreas: number[]; triAspects: number[] }[] = [];
-  const allAreas: number[] = [];
-  const allAspects: number[] = [];
-
-  const vA = new THREE.Vector3(),
-    vB = new THREE.Vector3(),
-    vC = new THREE.Vector3();
-  const e1 = new THREE.Vector3(),
-    e2 = new THREE.Vector3();
-
-  model.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const geo = child.geometry;
-    const pos = geo.attributes.position;
-    if (!pos) return;
-
-    const index = geo.index;
-    const triCount = index ? index.count / 3 : pos.count / 3;
-    const triAreas: number[] = [];
-    const triAspects: number[] = [];
-
-    for (let i = 0; i < triCount; i++) {
-      let a: number, b: number, c: number;
-      if (index) {
-        a = index.getX(i * 3);
-        b = index.getX(i * 3 + 1);
-        c = index.getX(i * 3 + 2);
-      } else {
-        a = i * 3;
-        b = i * 3 + 1;
-        c = i * 3 + 2;
-      }
-
-      vA.fromBufferAttribute(pos, a);
-      vB.fromBufferAttribute(pos, b);
-      vC.fromBufferAttribute(pos, c);
-
-      e1.subVectors(vB, vA);
-      e2.subVectors(vC, vA);
-      const area = e1.cross(e2).length() * 0.5;
-      triAreas.push(area);
-
-      // Aspect ratio: longest edge / shortest altitude
-      const edgeAB = vA.distanceTo(vB);
-      const edgeBC = vB.distanceTo(vC);
-      const edgeCA = vC.distanceTo(vA);
-      const longest = Math.max(edgeAB, edgeBC, edgeCA);
-      const shortest = Math.min(edgeAB, edgeBC, edgeCA);
-      const aspect = shortest > 1e-10 ? longest / shortest : 100;
-      triAspects.push(aspect);
-    }
-
-    allAreas.push(...triAreas);
-    allAspects.push(...triAspects);
-    meshData.push({ mesh: child, triAreas, triAspects });
-  });
-
-  const totalTris = allAreas.length;
-  if (totalTris === 0) {
-    return {
-      info: {
-        totalTris: 0,
-        avgArea: 0,
-        minArea: 0,
-        maxArea: 0,
-        densityRatio: 0,
-        thinTriPercent: 0,
-        overDensePercent: 0,
-        underDensePercent: 0,
-        needsRetopo: false,
-        reasons: [],
-      },
-      meshData,
-    };
-  }
-
-  const sum = allAreas.reduce((s, a) => s + a, 0);
-  const avgArea = sum / totalTris;
-  const minArea = Math.min(...allAreas);
-  const maxArea = Math.max(...allAreas);
-  const densityRatio = minArea > 1e-10 ? maxArea / minArea : Infinity;
-
-  // Thin triangles: aspect ratio > 10
-  const thinCount = allAspects.filter((a) => a > 10).length;
-  const thinTriPercent = (thinCount / totalTris) * 100;
-
-  // Over-dense: area < avgArea * 0.1
-  const overDenseCount = allAreas.filter((a) => a < avgArea * 0.1).length;
-  const overDensePercent = (overDenseCount / totalTris) * 100;
-
-  // Under-dense: area > avgArea * 5
-  const underDenseCount = allAreas.filter((a) => a > avgArea * 5).length;
-  const underDensePercent = (underDenseCount / totalTris) * 100;
-
-  const reasons: string[] = [];
-  if (thinTriPercent > 5) reasons.push(`Thin triangles: ${thinTriPercent.toFixed(1)}%`);
-  if (overDensePercent > 10) reasons.push(`Over-dense areas: ${overDensePercent.toFixed(1)}%`);
-  if (underDensePercent > 10) reasons.push(`Under-dense areas: ${underDensePercent.toFixed(1)}%`);
-  if (densityRatio > 1000) reasons.push(`Density imbalance: ${densityRatio.toFixed(0)}x`);
-
-  const needsRetopo = reasons.length > 0;
-
-  return {
-    info: {
-      totalTris,
-      avgArea,
-      minArea,
-      maxArea,
-      densityRatio,
-      thinTriPercent,
-      overDensePercent,
-      underDensePercent,
-      needsRetopo,
-      reasons,
-    },
-    meshData,
-  };
-}
-
-function RetopoDiagnostics({
-  model,
-  onRetopoInfo,
-}: {
-  model: THREE.Group;
-  onRetopoInfo?: (info: RetopoDiagInfo | null) => void;
-}) {
+function RetopoDiagnostics({ model }: { model: THREE.Group }) {
   useEffect(() => {
-    const { info, meshData } = analyzeRetopo(model);
-    onRetopoInfo?.(info);
+    // Collect per-mesh triangle data for heatmap coloring
+    const meshData: { mesh: THREE.Mesh; triAreas: number[]; triAspects: number[] }[] = [];
+    const allAreas: number[] = [];
 
-    if (meshData.length === 0) return;
+    const vA = new THREE.Vector3(),
+      vB = new THREE.Vector3(),
+      vC = new THREE.Vector3();
+    const e1 = new THREE.Vector3(),
+      e2 = new THREE.Vector3();
+
+    model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const geo = child.geometry;
+      const pos = geo.attributes.position;
+      if (!pos) return;
+
+      const index = geo.index;
+      const triCount = index ? index.count / 3 : pos.count / 3;
+      const triAreas: number[] = [];
+      const triAspects: number[] = [];
+
+      for (let i = 0; i < triCount; i++) {
+        let a: number, b: number, c: number;
+        if (index) {
+          a = index.getX(i * 3);
+          b = index.getX(i * 3 + 1);
+          c = index.getX(i * 3 + 2);
+        } else {
+          a = i * 3;
+          b = i * 3 + 1;
+          c = i * 3 + 2;
+        }
+        vA.fromBufferAttribute(pos, a);
+        vB.fromBufferAttribute(pos, b);
+        vC.fromBufferAttribute(pos, c);
+        e1.subVectors(vB, vA);
+        e2.subVectors(vC, vA);
+        triAreas.push(e1.cross(e2).length() * 0.5);
+
+        const edgeAB = vA.distanceTo(vB);
+        const edgeBC = vB.distanceTo(vC);
+        const edgeCA = vC.distanceTo(vA);
+        const longest = Math.max(edgeAB, edgeBC, edgeCA);
+        const shortest = Math.min(edgeAB, edgeBC, edgeCA);
+        triAspects.push(shortest > 1e-10 ? longest / shortest : 100);
+      }
+      allAreas.push(...triAreas);
+      meshData.push({ mesh: child, triAreas, triAspects });
+    });
+
+    const totalTris = allAreas.length;
+
+    if (totalTris === 0) return;
 
     // Compute global avg for consistent coloring
-    const globalAvg = info.avgArea;
+    const globalAvg = allAreas.reduce((s, a) => s + a, 0) / totalTris;
     const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
 
     for (const { mesh, triAreas, triAspects } of meshData) {
@@ -471,9 +379,8 @@ function RetopoDiagnostics({
         const orig = originals.get(mesh);
         if (orig) mesh.material = orig;
       }
-      onRetopoInfo?.(null);
     };
-  }, [model, onRetopoInfo]);
+  }, [model]);
 
   return null;
 }
@@ -630,7 +537,6 @@ interface ModelDisplayProps {
   model: THREE.Group;
   viewMode: ViewMode;
   onFlippedInfo?: (info: FlippedNormalInfo | null) => void;
-  onRetopoInfo?: (info: RetopoDiagInfo | null) => void;
   focusTarget?: THREE.Vector3 | null;
   focusModelRef?: React.MutableRefObject<(() => void) | null>;
 }
@@ -639,7 +545,6 @@ function ModelDisplay({
   model,
   viewMode,
   onFlippedInfo,
-  onRetopoInfo,
   focusTarget,
   focusModelRef,
 }: ModelDisplayProps) {
@@ -702,7 +607,7 @@ function ModelDisplay({
         {viewMode === "normals" && <NormalsHelper model={model} onFlippedInfo={onFlippedInfo} />}
         {viewMode === "normalmap" && <NormalMapMode model={model} />}
         {viewMode === "uv" && <UVOverlay model={model} />}
-        {viewMode === "retopo" && <RetopoDiagnostics model={model} onRetopoInfo={onRetopoInfo} />}
+        {viewMode === "retopo" && <RetopoDiagnostics model={model} />}
       </Center>
       {focusTarget && <CameraFocus target={focusTarget} />}
     </group>
@@ -893,6 +798,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           .then((loaded) => {
             if (cancelled) return;
             setModel(loaded.scene);
+            setRetopoInfo(loaded.retopoDiag);
             onModelLoaded?.(loaded);
           })
           .catch((err) => {
@@ -967,7 +873,6 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
               model={model}
               viewMode={activeViewMode}
               onFlippedInfo={setFlippedInfo}
-              onRetopoInfo={setRetopoInfo}
               focusTarget={focusTarget}
               focusModelRef={focusModelRef}
             />

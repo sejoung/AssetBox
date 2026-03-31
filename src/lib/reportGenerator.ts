@@ -43,7 +43,8 @@ const ITEM_EXPLANATIONS: Record<string, string> = {
   "Non-manifold":
     "3개 이상의 면이 공유하는 edge입니다. 3D 프린팅 및 물리 연산에서 문제를 일으킵니다.",
   "Open Edges": "하나의 면에만 속하는 경계 edge입니다. 메시가 완전히 닫혀 있지 않음을 의미합니다.",
-  "Flipped Normals": "면의 법선이 안쪽을 향해 렌더링 시 보이지 않는 삼각형입니다.",
+  "Flipped Normals":
+    "면의 법선이 안쪽을 향해 렌더링 시 보이지 않는 삼각형입니다. Normals 뷰 모드에서 빨간 점으로 표시됩니다.",
   "UV Coverage": "모든 메시에 UV 좌표가 할당되어 있어 텍스처 매핑이 가능합니다.",
   "No UVs": "UV 좌표가 없는 메시입니다. 텍스처를 적용할 수 없습니다.",
   "UV Channels": "UV 좌표 세트의 수입니다. 라이트맵에는 보통 2번째 채널을 사용합니다.",
@@ -172,6 +173,84 @@ export function generateHTMLReport(asset: AssetInfo, validation: ValidationResul
         .join("")}
       ${asset.missingTextures.length > 0 ? `<p style="font-size:11px;color:#fbbf24;margin-top:6px;">Missing: ${asset.missingTextures.join(", ")}</p>` : ""}
     </div>
+  </div>
+  `
+      : ""
+  }
+
+  ${
+    asset.retopoDiag
+      ? `
+  <!-- Retopology Diagnosis -->
+  <div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:rgba(26,26,46,0.6);border:1px solid #2a2a4a;">
+    <div style="padding:10px 14px;background:rgba(42,42,74,0.5);display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a0a0b0;">Retopology Diagnosis</span>
+      <span style="width:8px;height:8px;border-radius:50%;background:${asset.retopoDiag.needsRetopo ? "#f87171" : "#4ade80"};display:inline-block;"></span>
+    </div>
+    <p style="padding:8px 14px 0;font-size:11px;color:#707080;line-height:1.6;margin:0;">
+      메시의 삼각형 밀도 분포와 형태를 분석하여 리토폴로지 필요성을 진단합니다.
+      밀도가 불균일하거나 얇은 삼각형이 많으면 렌더링 효율이 떨어지고 텍스처 왜곡이 발생할 수 있습니다.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin:6px 0;">
+      <tr>
+        <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;">판정</td>
+        <td style="padding:6px 10px;font-family:monospace;font-weight:600;text-align:right;color:${asset.retopoDiag.needsRetopo ? "#f87171" : "#4ade80"};">
+          ${asset.retopoDiag.needsRetopo ? "❌ Retopology Recommended" : "✅ Topology OK"}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;">총 삼각형</td>
+        <td style="padding:6px 10px;font-family:monospace;font-weight:600;text-align:right;color:#eaeaea;">
+          ${asset.retopoDiag.totalTris.toLocaleString()}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;">얇은 삼각형</td>
+        <td style="padding:6px 10px;font-family:monospace;font-weight:600;text-align:right;color:${asset.retopoDiag.thinTriPercent > 5 ? "#f87171" : "#4ade80"};">
+          ${asset.retopoDiag.thinTriPercent.toFixed(1)}%
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding:0 10px 6px;font-size:11px;color:#707080;">Aspect ratio가 10:1을 초과하는 삼각형입니다. 텍스처 스트레칭과 라이팅 아티팩트를 유발합니다.</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;">과밀 영역</td>
+        <td style="padding:6px 10px;font-family:monospace;font-weight:600;text-align:right;color:${asset.retopoDiag.overDensePercent > 10 ? "#f87171" : "#4ade80"};">
+          ${asset.retopoDiag.overDensePercent.toFixed(1)}%
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding:0 10px 6px;font-size:11px;color:#707080;">평균 면적의 10% 미만인 삼각형입니다. 불필요하게 폴리곤을 낭비하는 영역입니다.</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;">과소 영역</td>
+        <td style="padding:6px 10px;font-family:monospace;font-weight:600;text-align:right;color:${asset.retopoDiag.underDensePercent > 10 ? "#f87171" : "#4ade80"};">
+          ${asset.retopoDiag.underDensePercent.toFixed(1)}%
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding:0 10px 6px;font-size:11px;color:#707080;">평균 면적의 5배를 초과하는 삼각형입니다. 디테일이 부족한 영역입니다.</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;">밀도 편차</td>
+        <td style="padding:6px 10px;font-family:monospace;font-weight:600;text-align:right;color:${asset.retopoDiag.densityRatio > 1000 ? "#f87171" : asset.retopoDiag.densityRatio > 100 ? "#fbbf24" : "#4ade80"};">
+          ${asset.retopoDiag.densityRatio === Infinity ? "∞" : asset.retopoDiag.densityRatio.toFixed(0)}x
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding:0 10px 6px;font-size:11px;color:#707080;">가장 큰 삼각형과 가장 작은 삼각형의 면적 비율입니다. 높을수록 밀도가 불균일합니다.</td>
+      </tr>
+    </table>
+    ${
+      asset.retopoDiag.reasons.length > 0
+        ? `<div style="padding:6px 14px 10px;border-top:1px solid #2a2a4a;">
+        <span style="font-size:11px;font-weight:600;color:#fbbf24;">Issues:</span>
+        <ul style="margin:4px 0 0;padding-left:16px;font-size:11px;color:#a0a0b0;">
+          ${asset.retopoDiag.reasons.map((r) => `<li style="margin-bottom:2px;">${r}</li>`).join("")}
+        </ul>
+      </div>`
+        : ""
+    }
   </div>
   `
       : ""

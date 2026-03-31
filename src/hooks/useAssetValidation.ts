@@ -156,13 +156,14 @@ export function validateAsset(input: ValidationInput): ValidationResult {
 
   if (d.flippedNormalTriCount > 0) {
     const pct = input.polyCount > 0 ? d.flippedNormalTriCount / input.polyCount : 0;
+    const pctStr = (pct * 100).toFixed(1);
     items.push(
       item(
         "topology",
         "Flipped Normals",
-        formatNumber(d.flippedNormalTriCount),
+        `${formatNumber(d.flippedNormalTriCount)} (${pctStr}%)`,
         pct > 0.1 ? "bad" : "warning",
-        "Normals pointing inward"
+        "Normals pointing inward — visible as red in Normals view"
       )
     );
   } else {

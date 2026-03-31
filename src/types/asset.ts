@@ -16,6 +16,19 @@ export type TextureType =
   | "opacity"
   | "unknown";
 
+export interface RetopoDiagInfo {
+  totalTris: number;
+  avgArea: number;
+  minArea: number;
+  maxArea: number;
+  densityRatio: number;
+  thinTriPercent: number;
+  overDensePercent: number;
+  underDensePercent: number;
+  needsRetopo: boolean;
+  reasons: string[];
+}
+
 export interface AssetInfo {
   fileName: string;
   filePath: string;
@@ -26,6 +39,7 @@ export interface AssetInfo {
   meshCount: number;
   textures: TextureInfo[];
   missingTextures: TextureType[];
+  retopoDiag?: RetopoDiagInfo;
 }
 
 export type ValidationSeverity = "good" | "warning" | "bad";

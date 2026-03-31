@@ -53,5 +53,6 @@ export async function buildAssetInfo(filePath: string, model: LoadedModel): Prom
     meshCount: model.meshCount,
     textures,
     missingTextures,
+    retopoDiag: model.retopoDiag,
   };
 }
