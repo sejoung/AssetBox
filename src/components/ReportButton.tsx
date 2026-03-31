@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AssetInfo, ValidationResult } from "../types/asset";
 import { generateHTMLReport } from "../lib/reportGenerator";
 import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP } from "../lib/overlayStyle";
+import * as log from "../lib/logger";
 
 interface ReportButtonProps {
   asset: AssetInfo | null;
@@ -22,7 +23,7 @@ export function ReportButton({ asset, validation }: ReportButtonProps) {
       setStatus("done");
       setTimeout(() => setStatus("idle"), 2000);
     } catch (err) {
-      console.error("Report generation failed:", err);
+      log.error("Report generation failed:", err);
       setStatus("error");
       setTimeout(() => setStatus("idle"), 3000);
     }

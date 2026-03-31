@@ -6,8 +6,10 @@ import { InfoPanel } from "./components/InfoPanel";
 import { useFileDropHandler } from "./hooks/useFileDropHandler";
 import { validateAsset } from "./hooks/useAssetValidation";
 import { buildAssetInfo } from "./components/TextureMatcher";
+import { invoke } from "@tauri-apps/api/core";
 import type { AssetInfo, ValidationResult } from "./types/asset";
 import type { LoadedModel } from "./components/ModelLoader";
+import * as log from "./lib/logger";
 
 function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -52,7 +54,7 @@ function App() {
         });
         setValidation(result);
       } catch (err) {
-        console.error("Failed to build asset info:", err);
+        log.error("Failed to build asset info:", err);
       }
     },
     [filePath]
@@ -84,14 +86,22 @@ function App() {
       {/* Error toast */}
       {error && (
         <div
-          className="absolute bottom-3 left-3 z-20 px-3 py-2 rounded-lg text-xs"
+          className="absolute bottom-3 left-3 z-20 flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
           style={{
             backgroundColor: "rgba(248, 113, 113, 0.15)",
             backdropFilter: "blur(12px)",
             color: "var(--danger)",
           }}
         >
-          {error}
+          <span>{error}</span>
+          <button
+            onClick={() => invoke("open_log_directory").catch(() => {})}
+            className="shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer hover:brightness-125 transition-all"
+            style={{ backgroundColor: "rgba(248, 113, 113, 0.3)", color: "#f87171" }}
+            title="Open log directory"
+          >
+            Logs
+          </button>
         </div>
       )}
     </div>

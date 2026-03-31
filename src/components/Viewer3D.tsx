@@ -12,6 +12,7 @@ import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { loadModel, type LoadedModel } from "./ModelLoader";
 import type { RetopoDiagInfo } from "../types/asset";
+import * as log from "../lib/logger";
 import { ViewerToolbar, type ViewMode } from "./ViewerToolbar";
 import {
   OVERLAY_BG,
@@ -803,7 +804,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           })
           .catch((err) => {
             if (cancelled) return;
-            console.error("Failed to load model:", err);
+            log.error("Failed to load model:", err);
             onError?.(err instanceof Error ? err : new Error(String(err)));
           })
           .finally(() => {

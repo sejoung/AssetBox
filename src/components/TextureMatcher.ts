@@ -2,6 +2,7 @@ import type { TextureInfo, AssetInfo } from "../types/asset";
 import { findTexturesInFileList } from "../lib/textureRules";
 import { scanAssetDirectory, type ScanResult } from "../hooks/useTauriCommand";
 import type { LoadedModel } from "./ModelLoader";
+import * as log from "../lib/logger";
 
 const FORMAT_MAP: Record<string, AssetInfo["format"]> = {
   fbx: "fbx",
@@ -32,7 +33,7 @@ export async function buildAssetInfo(filePath: string, model: LoadedModel): Prom
       };
     });
   } catch (err) {
-    console.warn("Directory scan failed, continuing without textures:", err);
+    log.warn("Directory scan failed, continuing without textures:", err);
   }
 
   // Only check for missing external textures if:

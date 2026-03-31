@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Viewer3DHandle } from "./Viewer3D";
 import { OVERLAY_BACKDROP } from "../lib/overlayStyle";
+import * as log from "../lib/logger";
 
 interface ThumbnailButtonProps {
   viewerRef: React.RefObject<Viewer3DHandle | null>;
@@ -23,7 +24,7 @@ export function ThumbnailButton({ viewerRef, assetPath, disabled }: ThumbnailBut
       setStatus("done");
       setTimeout(() => setStatus("idle"), 2000);
     } catch (err) {
-      console.error("Thumbnail generation failed:", err);
+      log.error("Thumbnail generation failed:", err);
       setStatus("error");
       setTimeout(() => setStatus("idle"), 3000);
     }

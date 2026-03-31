@@ -4,6 +4,7 @@ import { ValidationBadge } from "./ValidationBadge";
 import type { Viewer3DHandle } from "./Viewer3D";
 import { ThumbnailButton } from "./ThumbnailButton";
 import { ReportButton } from "./ReportButton";
+import { LogButton } from "./LogButton";
 import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP } from "../lib/overlayStyle";
 
 interface InfoPanelProps {
@@ -196,6 +197,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
 
       {/* Bottom-right: Action buttons */}
       <div className="absolute bottom-5 right-5 z-20 flex gap-3">
+        <LogButton />
         <ReportButton asset={asset} validation={validation} />
         <ThumbnailButton viewerRef={viewerRef} assetPath={assetPath} />
       </div>

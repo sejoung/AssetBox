@@ -1,15 +1,20 @@
 use crate::models::asset_info::{ScanResult, ScannedTexture};
+use log::{info, warn};
 use std::path::Path;
 
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "tga", "tiff", "tif", "bmp", "exr"];
 
 #[tauri::command]
 pub fn scan_asset_directory(file_path: String) -> Result<ScanResult, String> {
+    info!("scan_asset_directory: {}", file_path);
     let path = Path::new(&file_path);
 
     let parent = path
         .parent()
-        .ok_or_else(|| "Cannot determine parent directory".to_string())?;
+        .ok_or_else(|| {
+            warn!("Cannot determine parent directory for: {}", file_path);
+            "Cannot determine parent directory".to_string()
+        })?;
 
     let directory = parent.to_string_lossy().to_string();
 
@@ -51,6 +56,12 @@ pub fn scan_asset_directory(file_path: String) -> Result<ScanResult, String> {
             });
         }
     }
+
+    info!(
+        "scan_asset_directory: found {} siblings, {} textures",
+        sibling_files.len(),
+        textures.len()
+    );
 
     Ok(ScanResult {
         model_path: file_path,

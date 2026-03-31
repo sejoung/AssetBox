@@ -2,6 +2,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import * as THREE from "three";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 export interface MeshDiagnostics {
   // Geometry
@@ -356,16 +357,20 @@ export function analyzeRetopo(object: THREE.Object3D): RetopoDiagInfo {
 }
 
 export function convertFilePath(filePath: string): string {
-  // On Windows, paths like C:\Users\foo\model.fbx need to be converted
-  // to asset://localhost/C%3A/Users/foo/model.fbx
-  // encodeURIComponent encodes too aggressively (slashes, colons),
-  // so we encode only each path segment individually.
-  const normalized = filePath.replace(/\\/g, "/");
-  const encoded = normalized
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-  return `asset://localhost/${encoded}`;
+  // Use Tauri's built-in convertFileSrc which handles platform differences:
+  // - Windows: http://asset.localhost/{path}
+  // - macOS/Linux: asset://localhost/{path}
+  // Falls back to manual construction for non-Tauri environments (tests).
+  try {
+    return convertFileSrc(filePath);
+  } catch {
+    const normalized = filePath.replace(/\\/g, "/");
+    const encoded = normalized
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    return `asset://localhost/${encoded}`;
+  }
 }
 
 export function loadModel(filePath: string): Promise<LoadedModel> {
