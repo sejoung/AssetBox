@@ -263,13 +263,85 @@ function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
 }
 
 export function analyzeRetopo(object: THREE.Object3D): RetopoDiagInfo {
-  const allAreas: number[] = [];
-  const allAspects: number[] = [];
+  // Single-pass analysis: no intermediate arrays, compute stats inline
+  let totalTris = 0;
+  let sum = 0;
+  let minArea = Infinity;
+  let maxArea = 0;
+  let thinCount = 0;
+
   const vA = new THREE.Vector3(),
     vB = new THREE.Vector3(),
     vC = new THREE.Vector3();
   const e1 = new THREE.Vector3(),
     e2 = new THREE.Vector3();
+
+  // First pass: compute sum, min, max, thin count
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const geo = child.geometry;
+    const pos = geo.attributes.position;
+    if (!pos) return;
+
+    const index = geo.index;
+    const triCount = index ? index.count / 3 : pos.count / 3;
+    totalTris += triCount;
+
+    for (let i = 0; i < triCount; i++) {
+      let a: number, b: number, c: number;
+      if (index) {
+        a = index.getX(i * 3);
+        b = index.getX(i * 3 + 1);
+        c = index.getX(i * 3 + 2);
+      } else {
+        a = i * 3;
+        b = i * 3 + 1;
+        c = i * 3 + 2;
+      }
+
+      vA.fromBufferAttribute(pos, a);
+      vB.fromBufferAttribute(pos, b);
+      vC.fromBufferAttribute(pos, c);
+
+      e1.subVectors(vB, vA);
+      e2.subVectors(vC, vA);
+      const area = e1.cross(e2).length() * 0.5;
+      sum += area;
+      if (area < minArea) minArea = area;
+      if (area > maxArea) maxArea = area;
+
+      const edgeAB = vA.distanceTo(vB);
+      const edgeBC = vB.distanceTo(vC);
+      const edgeCA = vC.distanceTo(vA);
+      const longest = Math.max(edgeAB, edgeBC, edgeCA);
+      const shortest = Math.min(edgeAB, edgeBC, edgeCA);
+      if ((shortest > 1e-10 ? longest / shortest : 100) > 10) thinCount++;
+    }
+  });
+
+  if (totalTris === 0) {
+    return {
+      totalTris: 0,
+      avgArea: 0,
+      minArea: 0,
+      maxArea: 0,
+      densityRatio: 0,
+      thinTriPercent: 0,
+      overDensePercent: 0,
+      underDensePercent: 0,
+      needsRetopo: false,
+      reasons: [],
+    };
+  }
+
+  const avgArea = sum / totalTris;
+  const densityRatio = minArea > 1e-10 ? maxArea / minArea : Infinity;
+
+  // Second pass: count over/under-dense (needs avgArea from first pass)
+  let overDenseCount = 0;
+  let underDenseCount = 0;
+  const overThreshold = avgArea * 0.1;
+  const underThreshold = avgArea * 5;
 
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
@@ -295,59 +367,14 @@ export function analyzeRetopo(object: THREE.Object3D): RetopoDiagInfo {
       vA.fromBufferAttribute(pos, a);
       vB.fromBufferAttribute(pos, b);
       vC.fromBufferAttribute(pos, c);
-
       e1.subVectors(vB, vA);
       e2.subVectors(vC, vA);
       const area = e1.cross(e2).length() * 0.5;
-      allAreas.push(area);
 
-      const edgeAB = vA.distanceTo(vB);
-      const edgeBC = vB.distanceTo(vC);
-      const edgeCA = vC.distanceTo(vA);
-      const longest = Math.max(edgeAB, edgeBC, edgeCA);
-      const shortest = Math.min(edgeAB, edgeBC, edgeCA);
-      allAspects.push(shortest > 1e-10 ? longest / shortest : 100);
+      if (area < overThreshold) overDenseCount++;
+      if (area > underThreshold) underDenseCount++;
     }
   });
-
-  const totalTris = allAreas.length;
-  if (totalTris === 0) {
-    return {
-      totalTris: 0,
-      avgArea: 0,
-      minArea: 0,
-      maxArea: 0,
-      densityRatio: 0,
-      thinTriPercent: 0,
-      overDensePercent: 0,
-      underDensePercent: 0,
-      needsRetopo: false,
-      reasons: [],
-    };
-  }
-
-  let sum = 0;
-  let minArea = Infinity;
-  let maxArea = 0;
-  let thinCount = 0;
-  for (let i = 0; i < totalTris; i++) {
-    const a = allAreas[i];
-    sum += a;
-    if (a < minArea) minArea = a;
-    if (a > maxArea) maxArea = a;
-    if (allAspects[i] > 10) thinCount++;
-  }
-  const avgArea = sum / totalTris;
-  const densityRatio = minArea > 1e-10 ? maxArea / minArea : Infinity;
-
-  let overDenseCount = 0;
-  let underDenseCount = 0;
-  const overThreshold = avgArea * 0.1;
-  const underThreshold = avgArea * 5;
-  for (let i = 0; i < totalTris; i++) {
-    if (allAreas[i] < overThreshold) overDenseCount++;
-    if (allAreas[i] > underThreshold) underDenseCount++;
-  }
 
   const thinTriPercent = (thinCount / totalTris) * 100;
   const overDensePercent = (overDenseCount / totalTris) * 100;

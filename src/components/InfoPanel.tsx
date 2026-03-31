@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { AssetInfo, ValidationResult, ValidationItem, ValidationGroup } from "../types/asset";
 import { ValidationBadge } from "./ValidationBadge";
 import type { Viewer3DHandle } from "./Viewer3D";
@@ -14,7 +14,7 @@ interface InfoPanelProps {
   assetPath: string | null;
 }
 
-function StatRow({ item }: { item: ValidationItem }) {
+const StatRow = memo(function StatRow({ item }: { item: ValidationItem }) {
   const color =
     item.severity === "good" ? "#4ade80" : item.severity === "warning" ? "#fbbf24" : "#f87171";
 
@@ -38,9 +38,9 @@ function StatRow({ item }: { item: ValidationItem }) {
       )}
     </div>
   );
-}
+});
 
-function CategoryGroup({ group }: { group: ValidationGroup }) {
+const CategoryGroup = memo(function CategoryGroup({ group }: { group: ValidationGroup }) {
   const groupWorst = group.items.some((i) => i.severity === "bad")
     ? "#f87171"
     : group.items.some((i) => i.severity === "warning")
@@ -70,7 +70,7 @@ function CategoryGroup({ group }: { group: ValidationGroup }) {
       </div>
     </div>
   );
-}
+});
 
 export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanelProps) {
   const [collapsed, setCollapsed] = useState(false);

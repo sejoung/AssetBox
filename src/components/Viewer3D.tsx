@@ -45,24 +45,23 @@ function NormalsHelper({
     // Clear previous
     while (group.children.length) group.remove(group.children[0]);
 
-    // Replace mesh materials with flat dark so normal points stand out
+    // Single traversal: replace materials + compute normals
     const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
-    model.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        originals.set(child, child.material);
-        child.material = new THREE.MeshBasicMaterial({
-          color: 0x1a1a2e,
-          transparent: true,
-          opacity: 0.4,
-        });
-      }
+    const darkMat = new THREE.MeshBasicMaterial({
+      color: 0x1a1a2e,
+      transparent: true,
+      opacity: 0.4,
     });
-
     const allNormalVerts: number[] = [];
     const allFlippedVerts: number[] = [];
 
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
+
+      // Replace material
+      originals.set(child, child.material);
+      child.material = darkMat;
+
       const geo = child.geometry;
       const pos = geo.attributes.position;
       const norm = geo.attributes.normal;
@@ -163,11 +162,9 @@ function NormalsHelper({
     return () => {
       // Restore original materials
       originals.forEach((mat, mesh) => {
-        if (mesh.material instanceof THREE.MeshBasicMaterial) {
-          mesh.material.dispose();
-        }
         mesh.material = mat;
       });
+      darkMat.dispose();
       while (group.children.length) {
         const child = group.children[0];
         if (child instanceof THREE.Points) {
@@ -230,27 +227,22 @@ function NormalMapMode({ model }: { model: THREE.Group }) {
 
 function RetopoDiagnostics({ model }: { model: THREE.Group }) {
   useEffect(() => {
-    // Collect per-mesh triangle data for heatmap coloring
-    const meshData: { mesh: THREE.Mesh; triAreas: number[]; triAspects: number[] }[] = [];
-    const allAreas: number[] = [];
-
     const vA = new THREE.Vector3(),
       vB = new THREE.Vector3(),
       vC = new THREE.Vector3();
     const e1 = new THREE.Vector3(),
       e2 = new THREE.Vector3();
 
+    // Pass 1: compute global average area (no arrays stored)
+    let totalArea = 0;
+    let totalTris = 0;
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
-      const geo = child.geometry;
-      const pos = geo.attributes.position;
+      const pos = child.geometry.attributes.position;
       if (!pos) return;
-
-      const index = geo.index;
+      const index = child.geometry.index;
       const triCount = index ? index.count / 3 : pos.count / 3;
-      const triAreas: number[] = [];
-      const triAspects: number[] = [];
-
+      totalTris += triCount;
       for (let i = 0; i < triCount; i++) {
         let a: number, b: number, c: number;
         if (index) {
@@ -267,39 +259,32 @@ function RetopoDiagnostics({ model }: { model: THREE.Group }) {
         vC.fromBufferAttribute(pos, c);
         e1.subVectors(vB, vA);
         e2.subVectors(vC, vA);
-        triAreas.push(e1.cross(e2).length() * 0.5);
-
-        const edgeAB = vA.distanceTo(vB);
-        const edgeBC = vB.distanceTo(vC);
-        const edgeCA = vC.distanceTo(vA);
-        const longest = Math.max(edgeAB, edgeBC, edgeCA);
-        const shortest = Math.min(edgeAB, edgeBC, edgeCA);
-        triAspects.push(shortest > 1e-10 ? longest / shortest : 100);
+        totalArea += e1.cross(e2).length() * 0.5;
       }
-      allAreas.push(...triAreas);
-      meshData.push({ mesh: child, triAreas, triAspects });
     });
 
-    const totalTris = allAreas.length;
-
     if (totalTris === 0) return;
+    const globalAvg = totalArea / totalTris;
 
-    // Compute global avg for consistent coloring
-    const globalAvg = allAreas.reduce((s, a) => s + a, 0) / totalTris;
+    // Pass 2: apply vertex colors per mesh using globalAvg
     const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    const meshes: THREE.Mesh[] = [];
 
-    for (const { mesh, triAreas, triAspects } of meshData) {
-      originals.set(mesh, mesh.material);
+    model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const geo = child.geometry;
+      const pos = geo.attributes.position;
+      if (!pos) return;
 
-      const geo = mesh.geometry;
+      originals.set(child, child.material);
+      meshes.push(child);
+
       const index = geo.index;
-      const posCount = geo.attributes.position.count;
-
-      // Per-vertex color based on the triangles it belongs to
+      const triCount = index ? index.count / 3 : pos.count / 3;
+      const posCount = pos.count;
       const colorAttr = new Float32Array(posCount * 3);
       const weightCount = new Float32Array(posCount);
 
-      const triCount = triAreas.length;
       for (let i = 0; i < triCount; i++) {
         let a: number, b: number, c: number;
         if (index) {
@@ -312,33 +297,38 @@ function RetopoDiagnostics({ model }: { model: THREE.Group }) {
           c = i * 3 + 2;
         }
 
-        // Density score: how far from average area (log scale)
-        const areaRatio = globalAvg > 1e-10 ? triAreas[i] / globalAvg : 1;
-        const densityScore = Math.log2(Math.max(areaRatio, 1e-6));
-        // Aspect score: thin triangle penalty
-        const aspectPenalty = Math.min(triAspects[i] / 10, 1); // 0~1
+        vA.fromBufferAttribute(pos, a);
+        vB.fromBufferAttribute(pos, b);
+        vC.fromBufferAttribute(pos, c);
+        e1.subVectors(vB, vA);
+        e2.subVectors(vC, vA);
+        const area = e1.cross(e2).length() * 0.5;
 
-        // Combined score: -3..+3 range, 0 = good
-        const score = Math.max(-3, Math.min(3, densityScore));
+        // Density score
+        const areaRatio = globalAvg > 1e-10 ? area / globalAvg : 1;
+        const score = Math.max(-3, Math.min(3, Math.log2(Math.max(areaRatio, 1e-6))));
 
-        // Color: blue (over-dense, <avg) → green (good) → red (under-dense, >avg)
-        // Thin triangles get yellow tint
+        // Aspect ratio for thin triangle detection
+        const edgeAB = vA.distanceTo(vB);
+        const edgeBC = vB.distanceTo(vC);
+        const edgeCA = vC.distanceTo(vA);
+        const longest = Math.max(edgeAB, edgeBC, edgeCA);
+        const shortest = Math.min(edgeAB, edgeBC, edgeCA);
+        const aspectPenalty = Math.min((shortest > 1e-10 ? longest / shortest : 100) / 10, 1);
+
         let r: number, g: number, b2: number;
         if (score < 0) {
-          // Over-dense: blue to green
-          const t = -score / 3; // 0..1
+          const t = -score / 3;
           r = 0;
           g = 1 - t * 0.7;
           b2 = t;
         } else {
-          // Under-dense: green to red
-          const t = score / 3; // 0..1
+          const t = score / 3;
           r = t;
           g = 1 - t * 0.7;
           b2 = 0;
         }
 
-        // Blend in yellow for thin triangles
         if (aspectPenalty > 0.3) {
           const blend = (aspectPenalty - 0.3) / 0.7;
           r = r + (1 - r) * blend * 0.7;
@@ -346,15 +336,20 @@ function RetopoDiagnostics({ model }: { model: THREE.Group }) {
           b2 = b2 * (1 - blend * 0.8);
         }
 
-        for (const vi of [a, b, c]) {
-          colorAttr[vi * 3] += r;
-          colorAttr[vi * 3 + 1] += g;
-          colorAttr[vi * 3 + 2] += b2;
-          weightCount[vi]++;
-        }
+        colorAttr[a * 3] += r;
+        colorAttr[a * 3 + 1] += g;
+        colorAttr[a * 3 + 2] += b2;
+        weightCount[a]++;
+        colorAttr[b * 3] += r;
+        colorAttr[b * 3 + 1] += g;
+        colorAttr[b * 3 + 2] += b2;
+        weightCount[b]++;
+        colorAttr[c * 3] += r;
+        colorAttr[c * 3 + 1] += g;
+        colorAttr[c * 3 + 2] += b2;
+        weightCount[c]++;
       }
 
-      // Average vertex colors
       for (let i = 0; i < posCount; i++) {
         const w = weightCount[i] || 1;
         colorAttr[i * 3] /= w;
@@ -363,12 +358,12 @@ function RetopoDiagnostics({ model }: { model: THREE.Group }) {
       }
 
       geo.setAttribute("_retopoColor", new THREE.BufferAttribute(colorAttr, 3));
-      mesh.material = new THREE.MeshBasicMaterial({ vertexColors: true });
+      child.material = new THREE.MeshBasicMaterial({ vertexColors: true });
       geo.attributes.color = geo.attributes._retopoColor;
-    }
+    });
 
     return () => {
-      for (const { mesh } of meshData) {
+      for (const mesh of meshes) {
         const geo = mesh.geometry;
         if (geo.attributes._retopoColor) {
           geo.deleteAttribute("_retopoColor");
@@ -940,8 +935,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           style={{
             position: "absolute",
             top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
+            left: 16,
             backgroundColor: OVERLAY_BG,
             border: OVERLAY_BORDER,
             backdropFilter: OVERLAY_BACKDROP,
