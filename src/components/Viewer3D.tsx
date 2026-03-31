@@ -224,6 +224,260 @@ function NormalMapMode({ model }: { model: THREE.Group }) {
   return null;
 }
 
+// ── Retopology diagnosis (density heatmap) ──
+
+export interface RetopoDiagInfo {
+  totalTris: number;
+  avgArea: number;
+  minArea: number;
+  maxArea: number;
+  densityRatio: number; // max/min area ratio — higher = more imbalanced
+  thinTriPercent: number; // % of triangles with bad aspect ratio
+  overDensePercent: number; // % of triangles much smaller than average
+  underDensePercent: number; // % of triangles much larger than average
+  needsRetopo: boolean;
+  reasons: string[];
+}
+
+function analyzeRetopo(model: THREE.Group): {
+  info: RetopoDiagInfo;
+  meshData: { mesh: THREE.Mesh; triAreas: number[]; triAspects: number[] }[];
+} {
+  const meshData: { mesh: THREE.Mesh; triAreas: number[]; triAspects: number[] }[] = [];
+  const allAreas: number[] = [];
+  const allAspects: number[] = [];
+
+  const vA = new THREE.Vector3(),
+    vB = new THREE.Vector3(),
+    vC = new THREE.Vector3();
+  const e1 = new THREE.Vector3(),
+    e2 = new THREE.Vector3();
+
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const geo = child.geometry;
+    const pos = geo.attributes.position;
+    if (!pos) return;
+
+    const index = geo.index;
+    const triCount = index ? index.count / 3 : pos.count / 3;
+    const triAreas: number[] = [];
+    const triAspects: number[] = [];
+
+    for (let i = 0; i < triCount; i++) {
+      let a: number, b: number, c: number;
+      if (index) {
+        a = index.getX(i * 3);
+        b = index.getX(i * 3 + 1);
+        c = index.getX(i * 3 + 2);
+      } else {
+        a = i * 3;
+        b = i * 3 + 1;
+        c = i * 3 + 2;
+      }
+
+      vA.fromBufferAttribute(pos, a);
+      vB.fromBufferAttribute(pos, b);
+      vC.fromBufferAttribute(pos, c);
+
+      e1.subVectors(vB, vA);
+      e2.subVectors(vC, vA);
+      const area = e1.cross(e2).length() * 0.5;
+      triAreas.push(area);
+
+      // Aspect ratio: longest edge / shortest altitude
+      const edgeAB = vA.distanceTo(vB);
+      const edgeBC = vB.distanceTo(vC);
+      const edgeCA = vC.distanceTo(vA);
+      const longest = Math.max(edgeAB, edgeBC, edgeCA);
+      const shortest = Math.min(edgeAB, edgeBC, edgeCA);
+      const aspect = shortest > 1e-10 ? longest / shortest : 100;
+      triAspects.push(aspect);
+    }
+
+    allAreas.push(...triAreas);
+    allAspects.push(...triAspects);
+    meshData.push({ mesh: child, triAreas, triAspects });
+  });
+
+  const totalTris = allAreas.length;
+  if (totalTris === 0) {
+    return {
+      info: {
+        totalTris: 0,
+        avgArea: 0,
+        minArea: 0,
+        maxArea: 0,
+        densityRatio: 0,
+        thinTriPercent: 0,
+        overDensePercent: 0,
+        underDensePercent: 0,
+        needsRetopo: false,
+        reasons: [],
+      },
+      meshData,
+    };
+  }
+
+  const sum = allAreas.reduce((s, a) => s + a, 0);
+  const avgArea = sum / totalTris;
+  const minArea = Math.min(...allAreas);
+  const maxArea = Math.max(...allAreas);
+  const densityRatio = minArea > 1e-10 ? maxArea / minArea : Infinity;
+
+  // Thin triangles: aspect ratio > 10
+  const thinCount = allAspects.filter((a) => a > 10).length;
+  const thinTriPercent = (thinCount / totalTris) * 100;
+
+  // Over-dense: area < avgArea * 0.1
+  const overDenseCount = allAreas.filter((a) => a < avgArea * 0.1).length;
+  const overDensePercent = (overDenseCount / totalTris) * 100;
+
+  // Under-dense: area > avgArea * 5
+  const underDenseCount = allAreas.filter((a) => a > avgArea * 5).length;
+  const underDensePercent = (underDenseCount / totalTris) * 100;
+
+  const reasons: string[] = [];
+  if (thinTriPercent > 5) reasons.push(`Thin triangles: ${thinTriPercent.toFixed(1)}%`);
+  if (overDensePercent > 10) reasons.push(`Over-dense areas: ${overDensePercent.toFixed(1)}%`);
+  if (underDensePercent > 10) reasons.push(`Under-dense areas: ${underDensePercent.toFixed(1)}%`);
+  if (densityRatio > 1000) reasons.push(`Density imbalance: ${densityRatio.toFixed(0)}x`);
+
+  const needsRetopo = reasons.length > 0;
+
+  return {
+    info: {
+      totalTris,
+      avgArea,
+      minArea,
+      maxArea,
+      densityRatio,
+      thinTriPercent,
+      overDensePercent,
+      underDensePercent,
+      needsRetopo,
+      reasons,
+    },
+    meshData,
+  };
+}
+
+function RetopoDiagnostics({
+  model,
+  onRetopoInfo,
+}: {
+  model: THREE.Group;
+  onRetopoInfo?: (info: RetopoDiagInfo | null) => void;
+}) {
+  useEffect(() => {
+    const { info, meshData } = analyzeRetopo(model);
+    onRetopoInfo?.(info);
+
+    if (meshData.length === 0) return;
+
+    // Compute global avg for consistent coloring
+    const globalAvg = info.avgArea;
+    const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+
+    for (const { mesh, triAreas, triAspects } of meshData) {
+      originals.set(mesh, mesh.material);
+
+      const geo = mesh.geometry;
+      const index = geo.index;
+      const posCount = geo.attributes.position.count;
+
+      // Per-vertex color based on the triangles it belongs to
+      const colorAttr = new Float32Array(posCount * 3);
+      const weightCount = new Float32Array(posCount);
+
+      const triCount = triAreas.length;
+      for (let i = 0; i < triCount; i++) {
+        let a: number, b: number, c: number;
+        if (index) {
+          a = index.getX(i * 3);
+          b = index.getX(i * 3 + 1);
+          c = index.getX(i * 3 + 2);
+        } else {
+          a = i * 3;
+          b = i * 3 + 1;
+          c = i * 3 + 2;
+        }
+
+        // Density score: how far from average area (log scale)
+        const areaRatio = globalAvg > 1e-10 ? triAreas[i] / globalAvg : 1;
+        const densityScore = Math.log2(Math.max(areaRatio, 1e-6));
+        // Aspect score: thin triangle penalty
+        const aspectPenalty = Math.min(triAspects[i] / 10, 1); // 0~1
+
+        // Combined score: -3..+3 range, 0 = good
+        const score = Math.max(-3, Math.min(3, densityScore));
+
+        // Color: blue (over-dense, <avg) → green (good) → red (under-dense, >avg)
+        // Thin triangles get yellow tint
+        let r: number, g: number, b2: number;
+        if (score < 0) {
+          // Over-dense: blue to green
+          const t = -score / 3; // 0..1
+          r = 0;
+          g = 1 - t * 0.7;
+          b2 = t;
+        } else {
+          // Under-dense: green to red
+          const t = score / 3; // 0..1
+          r = t;
+          g = 1 - t * 0.7;
+          b2 = 0;
+        }
+
+        // Blend in yellow for thin triangles
+        if (aspectPenalty > 0.3) {
+          const blend = (aspectPenalty - 0.3) / 0.7;
+          r = r + (1 - r) * blend * 0.7;
+          g = g + (0.8 - g) * blend * 0.5;
+          b2 = b2 * (1 - blend * 0.8);
+        }
+
+        for (const vi of [a, b, c]) {
+          colorAttr[vi * 3] += r;
+          colorAttr[vi * 3 + 1] += g;
+          colorAttr[vi * 3 + 2] += b2;
+          weightCount[vi]++;
+        }
+      }
+
+      // Average vertex colors
+      for (let i = 0; i < posCount; i++) {
+        const w = weightCount[i] || 1;
+        colorAttr[i * 3] /= w;
+        colorAttr[i * 3 + 1] /= w;
+        colorAttr[i * 3 + 2] /= w;
+      }
+
+      geo.setAttribute("_retopoColor", new THREE.BufferAttribute(colorAttr, 3));
+      mesh.material = new THREE.MeshBasicMaterial({ vertexColors: true });
+      geo.attributes.color = geo.attributes._retopoColor;
+    }
+
+    return () => {
+      for (const { mesh } of meshData) {
+        const geo = mesh.geometry;
+        if (geo.attributes._retopoColor) {
+          geo.deleteAttribute("_retopoColor");
+          delete geo.attributes.color;
+        }
+        if (mesh.material instanceof THREE.MeshBasicMaterial) {
+          mesh.material.dispose();
+        }
+        const orig = originals.get(mesh);
+        if (orig) mesh.material = orig;
+      }
+      onRetopoInfo?.(null);
+    };
+  }, [model, onRetopoInfo]);
+
+  return null;
+}
+
 // ── UV layout visualization ──
 
 function UVOverlay({ model }: { model: THREE.Group }) {
@@ -376,6 +630,7 @@ interface ModelDisplayProps {
   model: THREE.Group;
   viewMode: ViewMode;
   onFlippedInfo?: (info: FlippedNormalInfo | null) => void;
+  onRetopoInfo?: (info: RetopoDiagInfo | null) => void;
   focusTarget?: THREE.Vector3 | null;
   focusModelRef?: React.MutableRefObject<(() => void) | null>;
 }
@@ -384,6 +639,7 @@ function ModelDisplay({
   model,
   viewMode,
   onFlippedInfo,
+  onRetopoInfo,
   focusTarget,
   focusModelRef,
 }: ModelDisplayProps) {
@@ -446,6 +702,7 @@ function ModelDisplay({
         {viewMode === "normals" && <NormalsHelper model={model} onFlippedInfo={onFlippedInfo} />}
         {viewMode === "normalmap" && <NormalMapMode model={model} />}
         {viewMode === "uv" && <UVOverlay model={model} />}
+        {viewMode === "retopo" && <RetopoDiagnostics model={model} onRetopoInfo={onRetopoInfo} />}
       </Center>
       {focusTarget && <CameraFocus target={focusTarget} />}
     </group>
@@ -523,6 +780,9 @@ function KeyboardHandler({
         case "5":
           onViewMode("uv");
           break;
+        case "6":
+          onViewMode("retopo");
+          break;
         case "f":
         case "F":
           if (!e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -561,6 +821,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const [activeViewMode, setActiveViewMode] = useState<ViewMode>("default");
   const [bgMode, setBgMode] = useState<BgMode>("dark");
   const [flippedInfo, setFlippedInfo] = useState<FlippedNormalInfo | null>(null);
+  const [retopoInfo, setRetopoInfo] = useState<RetopoDiagInfo | null>(null);
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
   const gridRef = useRef<THREE.Object3D | null>(null);
   const screenshotRef = useRef<(() => string | null) | null>(null);
@@ -594,6 +855,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         normals: "Computing normals...",
         normalmap: "Rendering normal map...",
         uv: "Applying UV checker...",
+        retopo: "Analyzing topology...",
       };
 
       setLoadingMessage(MODE_LABELS[mode]);
@@ -621,6 +883,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
     setViewMode("default");
     setActiveViewMode("default");
     setFlippedInfo(null);
+    setRetopoInfo(null);
     setFocusTarget(null);
 
     requestAnimationFrame(() => {
@@ -704,6 +967,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
               model={model}
               viewMode={activeViewMode}
               onFlippedInfo={setFlippedInfo}
+              onRetopoInfo={setRetopoInfo}
               focusTarget={focusTarget}
               focusModelRef={focusModelRef}
             />
@@ -763,6 +1027,179 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           </svg>
           Flipped Normals ({flippedInfo.count})
         </button>
+      )}
+
+      {activeViewMode === "retopo" && retopoInfo && (
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: OVERLAY_BG,
+            border: OVERLAY_BORDER,
+            backdropFilter: OVERLAY_BACKDROP,
+            borderRadius: 12,
+            padding: "16px 24px",
+            zIndex: 50,
+            minWidth: 320,
+            maxWidth: 420,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                backgroundColor: retopoInfo.needsRetopo ? "#f87171" : "#4ade80",
+              }}
+            />
+            <span style={{ color: "#eaeaea", fontSize: 14, fontWeight: 700 }}>
+              {retopoInfo.needsRetopo ? "Retopology Recommended" : "Topology OK"}
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "8px 20px",
+              fontSize: 12,
+            }}
+          >
+            <span style={{ color: "#a0a0b0" }}>Triangles</span>
+            <span style={{ color: "#eaeaea", fontFamily: "monospace", textAlign: "right" }}>
+              {retopoInfo.totalTris.toLocaleString()}
+            </span>
+
+            <span style={{ color: "#a0a0b0" }}>Thin triangles</span>
+            <span
+              style={{
+                color: retopoInfo.thinTriPercent > 5 ? "#f87171" : "#4ade80",
+                fontFamily: "monospace",
+                textAlign: "right",
+              }}
+            >
+              {retopoInfo.thinTriPercent.toFixed(1)}%
+            </span>
+
+            <span style={{ color: "#a0a0b0" }}>Over-dense</span>
+            <span
+              style={{
+                color: retopoInfo.overDensePercent > 10 ? "#f87171" : "#4ade80",
+                fontFamily: "monospace",
+                textAlign: "right",
+              }}
+            >
+              {retopoInfo.overDensePercent.toFixed(1)}%
+            </span>
+
+            <span style={{ color: "#a0a0b0" }}>Under-dense</span>
+            <span
+              style={{
+                color: retopoInfo.underDensePercent > 10 ? "#f87171" : "#4ade80",
+                fontFamily: "monospace",
+                textAlign: "right",
+              }}
+            >
+              {retopoInfo.underDensePercent.toFixed(1)}%
+            </span>
+
+            <span style={{ color: "#a0a0b0" }}>Density ratio</span>
+            <span
+              style={{
+                color:
+                  retopoInfo.densityRatio > 1000
+                    ? "#f87171"
+                    : retopoInfo.densityRatio > 100
+                      ? "#fbbf24"
+                      : "#4ade80",
+                fontFamily: "monospace",
+                textAlign: "right",
+              }}
+            >
+              {retopoInfo.densityRatio === Infinity ? "∞" : retopoInfo.densityRatio.toFixed(0)}x
+            </span>
+          </div>
+
+          {retopoInfo.reasons.length > 0 && (
+            <div
+              style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(60,60,100,0.5)" }}
+            >
+              <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 600 }}>Issues:</span>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 16, color: "#a0a0b0", fontSize: 11 }}>
+                {retopoInfo.reasons.map((r) => (
+                  <li key={r} style={{ marginBottom: 2 }}>
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: 12,
+              paddingTop: 10,
+              borderTop: "1px solid rgba(60,60,100,0.5)",
+              display: "flex",
+              gap: 16,
+              fontSize: 10,
+              color: "#707080",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  backgroundColor: "#0066ff",
+                  display: "inline-block",
+                }}
+              />
+              Over-dense
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  backgroundColor: "#4ade80",
+                  display: "inline-block",
+                }}
+              />
+              Good
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  backgroundColor: "#f87171",
+                  display: "inline-block",
+                }}
+              />
+              Under-dense
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  backgroundColor: "#fbbf24",
+                  display: "inline-block",
+                }}
+              />
+              Thin
+            </span>
+          </div>
+        </div>
       )}
 
       <KeyboardHandler onViewMode={handleViewMode} onFocusModel={handleFocusModel} />
