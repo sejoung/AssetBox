@@ -59,9 +59,9 @@ jobs:
             exit 1
           fi
 
-  # App build — only on main push, after check passes
+  # App build — only on main push, skip when release tag commit (avoids duplicate build with release.yml)
   build:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'bump version')
     needs: check
     strategy:
       fail-fast: false
