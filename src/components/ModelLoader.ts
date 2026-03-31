@@ -326,15 +326,32 @@ export function analyzeRetopo(object: THREE.Object3D): RetopoDiagInfo {
     };
   }
 
-  const sum = allAreas.reduce((s, a) => s + a, 0);
+  let sum = 0;
+  let minArea = Infinity;
+  let maxArea = 0;
+  let thinCount = 0;
+  for (let i = 0; i < totalTris; i++) {
+    const a = allAreas[i];
+    sum += a;
+    if (a < minArea) minArea = a;
+    if (a > maxArea) maxArea = a;
+    if (allAspects[i] > 10) thinCount++;
+  }
   const avgArea = sum / totalTris;
-  const minArea = Math.min(...allAreas);
-  const maxArea = Math.max(...allAreas);
   const densityRatio = minArea > 1e-10 ? maxArea / minArea : Infinity;
 
-  const thinTriPercent = (allAspects.filter((a) => a > 10).length / totalTris) * 100;
-  const overDensePercent = (allAreas.filter((a) => a < avgArea * 0.1).length / totalTris) * 100;
-  const underDensePercent = (allAreas.filter((a) => a > avgArea * 5).length / totalTris) * 100;
+  let overDenseCount = 0;
+  let underDenseCount = 0;
+  const overThreshold = avgArea * 0.1;
+  const underThreshold = avgArea * 5;
+  for (let i = 0; i < totalTris; i++) {
+    if (allAreas[i] < overThreshold) overDenseCount++;
+    if (allAreas[i] > underThreshold) underDenseCount++;
+  }
+
+  const thinTriPercent = (thinCount / totalTris) * 100;
+  const overDensePercent = (overDenseCount / totalTris) * 100;
+  const underDensePercent = (underDenseCount / totalTris) * 100;
 
   const reasons: string[] = [];
   if (thinTriPercent > 5) reasons.push(`Thin triangles: ${thinTriPercent.toFixed(1)}%`);
