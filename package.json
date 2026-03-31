@@ -1,6 +1,6 @@
 {
   "name": "assetbox",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "3D Asset Quick Viewer And Organizer",
   "scripts": {
     "dev": "tauri dev",
