@@ -29,7 +29,7 @@ export function findTexturesInFileList(filePaths: string[]): TextureInfo[] {
   const textures: TextureInfo[] = [];
 
   for (const filePath of filePaths) {
-    const fileName = filePath.split("/").pop() ?? filePath;
+    const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
     const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
 
     if (!IMAGE_EXTENSIONS.has(ext)) continue;

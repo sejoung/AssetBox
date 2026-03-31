@@ -12,7 +12,7 @@ const FORMAT_MAP: Record<string, AssetInfo["format"]> = {
 };
 
 export async function buildAssetInfo(filePath: string, model: LoadedModel): Promise<AssetInfo> {
-  const fileName = filePath.split("/").pop() ?? filePath;
+  const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
 
   let textures: TextureInfo[] = [];

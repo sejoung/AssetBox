@@ -55,6 +55,7 @@ function App() {
         setValidation(result);
       } catch (err) {
         log.error("Failed to build asset info:", err);
+        setError(err instanceof Error ? err.message : String(err));
       }
     },
     [filePath]

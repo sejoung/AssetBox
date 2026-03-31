@@ -22,6 +22,28 @@ import {
   type BgMode,
 } from "../lib/overlayStyle";
 
+// ── Scene disposal helper ──
+
+function disposeScene(scene: THREE.Object3D): void {
+  scene.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.geometry.dispose();
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const mat of materials) {
+        if (mat) {
+          for (const key of Object.keys(mat) as (keyof typeof mat)[]) {
+            const value = mat[key];
+            if (value instanceof THREE.Texture) {
+              value.dispose();
+            }
+          }
+          mat.dispose();
+        }
+      }
+    }
+  });
+}
+
 // ── Normals visualization ──
 
 interface FlippedNormalInfo {
@@ -774,7 +796,10 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
 
   useEffect(() => {
     if (!filePath) {
-      setModel(null);
+      setModel((prev) => {
+        if (prev) disposeScene(prev);
+        return null;
+      });
       return;
     }
 
@@ -793,7 +818,10 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         loadModel(filePath)
           .then((loaded) => {
             if (cancelled) return;
-            setModel(loaded.scene);
+            setModel((prev) => {
+              if (prev) disposeScene(prev);
+              return loaded.scene;
+            });
             setRetopoInfo(loaded.retopoDiag);
             onModelLoaded?.(loaded);
           })

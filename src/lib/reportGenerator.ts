@@ -6,6 +6,15 @@ import type {
   ValidationSeverity,
 } from "../types/asset";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function severityColor(s: ValidationSeverity): string {
   return s === "good" ? "#4ade80" : s === "warning" ? "#fbbf24" : "#f87171";
 }
@@ -67,12 +76,12 @@ function renderItem(item: ValidationItem): string {
 
   return `
     <tr>
-      <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;white-space:nowrap;">${item.label}</td>
+      <td style="padding:6px 10px;color:#a0a0b0;font-size:13px;white-space:nowrap;">${escapeHtml(item.label)}</td>
       <td style="padding:6px 10px;font-family:monospace;font-weight:600;color:${color};text-align:right;white-space:nowrap;">
-        ${emoji} ${item.value}
+        ${emoji} ${escapeHtml(item.value)}
       </td>
     </tr>
-    ${explanation ? `<tr><td colspan="2" style="padding:0 10px 6px 10px;font-size:11px;color:#707080;line-height:1.5;">${explanation}${item.threshold ? ` (${item.threshold})` : ""}</td></tr>` : ""}
+    ${explanation ? `<tr><td colspan="2" style="padding:0 10px 6px 10px;font-size:11px;color:#707080;line-height:1.5;">${escapeHtml(explanation)}${item.threshold ? ` (${escapeHtml(item.threshold)})` : ""}</td></tr>` : ""}
   `;
 }
 
@@ -139,8 +148,8 @@ export function generateHTMLReport(asset: AssetInfo, validation: ValidationResul
   <!-- File Info -->
   <div style="margin-bottom:20px;padding:14px 18px;border-radius:10px;background:#16213e;border:1px solid #2a2a4a;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <span style="font-family:monospace;font-size:11px;text-transform:uppercase;font-weight:700;color:#e94560;background:#0f3460;padding:4px 10px;border-radius:6px;">${asset.format}</span>
-      <span style="font-size:16px;font-weight:700;color:#eaeaea;">${asset.fileName}</span>
+      <span style="font-family:monospace;font-size:11px;text-transform:uppercase;font-weight:700;color:#e94560;background:#0f3460;padding:4px 10px;border-radius:6px;">${escapeHtml(asset.format)}</span>
+      <span style="font-size:16px;font-weight:700;color:#eaeaea;">${escapeHtml(asset.fileName)}</span>
     </div>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
       <span style="font-size:13px;font-weight:600;color:#a0a0b0;">Overall:</span>
@@ -164,14 +173,14 @@ export function generateHTMLReport(asset: AssetInfo, validation: ValidationResul
         .map(
           (tex) => `
         <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;">
-          <span style="font-family:monospace;text-transform:uppercase;color:#e94560;width:50px;flex-shrink:0;">${tex.type.slice(0, 6)}</span>
-          <span style="color:#eaeaea;">${tex.fileName}</span>
+          <span style="font-family:monospace;text-transform:uppercase;color:#e94560;width:50px;flex-shrink:0;">${escapeHtml(tex.type.slice(0, 6))}</span>
+          <span style="color:#eaeaea;">${escapeHtml(tex.fileName)}</span>
           ${tex.resolution ? `<span style="color:#707080;margin-left:auto;font-size:11px;">${tex.resolution.width}×${tex.resolution.height}</span>` : ""}
         </div>
       `
         )
         .join("")}
-      ${asset.missingTextures.length > 0 ? `<p style="font-size:11px;color:#fbbf24;margin-top:6px;">Missing: ${asset.missingTextures.join(", ")}</p>` : ""}
+      ${asset.missingTextures.length > 0 ? `<p style="font-size:11px;color:#fbbf24;margin-top:6px;">Missing: ${escapeHtml(asset.missingTextures.join(", "))}</p>` : ""}
     </div>
   </div>
   `
@@ -246,7 +255,7 @@ export function generateHTMLReport(asset: AssetInfo, validation: ValidationResul
         ? `<div style="padding:6px 14px 10px;border-top:1px solid #2a2a4a;">
         <span style="font-size:11px;font-weight:600;color:#fbbf24;">Issues:</span>
         <ul style="margin:4px 0 0;padding-left:16px;font-size:11px;color:#a0a0b0;">
-          ${asset.retopoDiag.reasons.map((r) => `<li style="margin-bottom:2px;">${r}</li>`).join("")}
+          ${asset.retopoDiag.reasons.map((r) => `<li style="margin-bottom:2px;">${escapeHtml(r)}</li>`).join("")}
         </ul>
       </div>`
         : ""

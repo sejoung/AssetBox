@@ -48,11 +48,17 @@ pub fn scan_asset_directory(file_path: String) -> Result<ScanResult, String> {
             .to_lowercase();
 
         if IMAGE_EXTENSIONS.contains(&ext.as_str()) {
-            let metadata = std::fs::metadata(&entry_path).map_err(|e| e.to_string())?;
+            let file_size = match std::fs::metadata(&entry_path) {
+                Ok(m) => m.len(),
+                Err(e) => {
+                    warn!("Cannot read metadata for {}: {}", entry_path.display(), e);
+                    continue;
+                }
+            };
             textures.push(ScannedTexture {
                 file_name,
                 file_path: entry_path.to_string_lossy().to_string(),
-                file_size: metadata.len(),
+                file_size,
             });
         }
     }
