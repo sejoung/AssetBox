@@ -181,6 +181,49 @@ function NormalsHelper({
   return <group ref={groupRef} />;
 }
 
+// ── Normal map visualization (RGB = normal direction) ──
+
+const normalMapVertexShader = `
+  varying vec3 vNormalView;
+  void main() {
+    vNormalView = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const normalMapFragmentShader = `
+  varying vec3 vNormalView;
+  void main() {
+    vec3 n = normalize(vNormalView);
+    gl_FragColor = vec4(n * 0.5 + 0.5, 1.0);
+  }
+`;
+
+function NormalMapMode({ model }: { model: THREE.Group }) {
+  useEffect(() => {
+    const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    const shaderMat = new THREE.ShaderMaterial({
+      vertexShader: normalMapVertexShader,
+      fragmentShader: normalMapFragmentShader,
+    });
+
+    model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      originals.set(child, child.material);
+      child.material = shaderMat;
+    });
+
+    return () => {
+      originals.forEach((mat, mesh) => {
+        mesh.material = mat;
+      });
+      shaderMat.dispose();
+    };
+  }, [model]);
+
+  return null;
+}
+
 // ── UV layout visualization ──
 
 function UVOverlay({ model }: { model: THREE.Group }) {
@@ -401,6 +444,7 @@ function ModelDisplay({
         <primitive object={model} />
         {viewMode === "wireframe" && <WireframeMode model={model} />}
         {viewMode === "normals" && <NormalsHelper model={model} onFlippedInfo={onFlippedInfo} />}
+        {viewMode === "normalmap" && <NormalMapMode model={model} />}
         {viewMode === "uv" && <UVOverlay model={model} />}
       </Center>
       {focusTarget && <CameraFocus target={focusTarget} />}
@@ -474,6 +518,9 @@ function KeyboardHandler({
           onViewMode("normals");
           break;
         case "4":
+          onViewMode("normalmap");
+          break;
+        case "5":
           onViewMode("uv");
           break;
         case "f":
@@ -545,6 +592,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         default: "Loading...",
         wireframe: "Building wireframe...",
         normals: "Computing normals...",
+        normalmap: "Rendering normal map...",
         uv: "Applying UV checker...",
       };
 

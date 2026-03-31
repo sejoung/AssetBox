@@ -79,9 +79,12 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
   return (
     <>
       {/* Top-left: File name + badge */}
-      <div className="absolute top-4 left-4 right-[300px] z-20 flex items-center gap-2.5 min-w-0">
+      <div
+        className="absolute top-4 left-4 z-20 flex items-center gap-2 min-w-0"
+        style={{ maxWidth: "calc(100% - 310px)" }}
+      >
         <span
-          className="px-4 py-2 rounded-lg text-xs font-mono uppercase font-bold tracking-wider shrink-0 leading-relaxed"
+          className="px-3 py-2 rounded-lg text-xs font-mono uppercase font-bold tracking-wider shrink-0 leading-relaxed"
           style={{
             backgroundColor: OVERLAY_BG,
             color: "#e94560",
@@ -92,7 +95,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
           {asset.format}
         </span>
         <span
-          className="px-5 py-2 rounded-lg text-sm font-semibold truncate min-w-0 leading-relaxed"
+          className="px-4 py-2 rounded-lg text-sm font-semibold truncate min-w-0 leading-relaxed"
           style={{
             backgroundColor: OVERLAY_BG,
             color: "#eaeaea",
@@ -117,7 +120,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
           backgroundColor: OVERLAY_BG,
           backdropFilter: OVERLAY_BACKDROP,
           border: OVERLAY_BORDER,
-          width: collapsed ? "auto" : "280px",
+          width: collapsed ? "auto" : "290px",
           maxHeight: collapsed ? "auto" : "calc(100vh - 100px)",
           overflowY: collapsed ? "visible" : "auto",
         }}
@@ -165,10 +168,10 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
                       className="flex items-center gap-2 text-[11px] leading-relaxed min-w-0"
                     >
                       <span
-                        className="font-mono uppercase shrink-0 w-[40px]"
-                        style={{ color: "#e94560" }}
+                        className="font-mono uppercase shrink-0"
+                        style={{ color: "#e94560", minWidth: "45px" }}
                       >
-                        {tex.type.slice(0, 4)}
+                        {tex.type.slice(0, 5)}
                       </span>
                       <span
                         className="truncate min-w-0"

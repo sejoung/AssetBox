@@ -1,6 +1,6 @@
 import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP, type BgMode } from "../lib/overlayStyle";
 
-export type ViewMode = "default" | "wireframe" | "normals" | "uv";
+export type ViewMode = "default" | "wireframe" | "normals" | "normalmap" | "uv";
 
 interface ViewerToolbarProps {
   viewMode: ViewMode;
@@ -30,9 +30,15 @@ const VIEW_MODES: { mode: ViewMode; label: string; shortcut: string; icon: strin
     icon: "M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5",
   },
   {
+    mode: "normalmap",
+    label: "Normal Map",
+    shortcut: "4",
+    icon: "M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z",
+  },
+  {
     mode: "uv",
     label: "UV",
-    shortcut: "4",
+    shortcut: "5",
     icon: "M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h12A2.25 2.25 0 0120.25 15.75V18A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z",
   },
 ];
@@ -53,7 +59,7 @@ export function ViewerToolbar({
   if (!hasModel) return null;
 
   return (
-    <div className="absolute bottom-5 left-5 z-20 flex items-center gap-2.5">
+    <div className="absolute bottom-5 left-5 right-5 z-20 flex items-center gap-1.5 flex-wrap justify-start">
       {/* View mode — separate pill buttons */}
       {VIEW_MODES.map(({ mode, label, shortcut, icon }) => {
         const isActive = viewMode === mode;
@@ -61,7 +67,7 @@ export function ViewerToolbar({
           <button
             key={mode}
             onClick={() => onViewModeChange(mode)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold leading-relaxed whitespace-nowrap transition-all duration-150 cursor-pointer hover:brightness-125"
+            className="flex items-center gap-2.5 min-w-[90px] px-5 py-3 rounded-xl text-sm font-semibold leading-relaxed whitespace-nowrap transition-all duration-150 cursor-pointer hover:brightness-125 shrink-0"
             style={{
               backgroundColor: isActive ? "rgba(233, 69, 96, 0.25)" : OVERLAY_BG,
               border: isActive ? "1px solid #e94560" : OVERLAY_BORDER,
@@ -85,11 +91,14 @@ export function ViewerToolbar({
       })}
 
       {/* Divider */}
-      <div className="w-px h-6 mx-0.5" style={{ backgroundColor: "rgba(60, 60, 100, 0.5)" }} />
+      <div
+        className="w-px h-6 mx-0.5 shrink-0"
+        style={{ backgroundColor: "rgba(60, 60, 100, 0.5)" }}
+      />
 
       {/* Background color picker */}
       <div
-        className="flex items-center gap-2 px-4 py-2.5 rounded-xl"
+        className="flex items-center gap-2.5 px-5 py-3 rounded-xl shrink-0"
         style={{
           backgroundColor: OVERLAY_BG,
           border: OVERLAY_BORDER,
