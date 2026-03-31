@@ -296,9 +296,162 @@
     user-select: all;
   }
 
+  /* Guide styles */
+  .guide-content {
+    text-align: left;
+    margin-bottom: 40px;
+  }
+
+  .guide-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 24px;
+  }
+
+  .guide-toc a {
+    color: #a0a0b0;
+    font-size: 0.75rem;
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(22, 33, 62, 0.6);
+    border: 1px solid #2a2a4a;
+    transition: all 0.15s;
+  }
+
+  .guide-toc a:hover {
+    border-color: #e94560;
+    color: #e94560;
+  }
+
+  .guide-section {
+    background: rgba(22, 33, 62, 0.5);
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+
+  .guide-section h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #eaeaea;
+    margin-bottom: 10px;
+  }
+
+  .guide-section h3 kbd {
+    font-size: 0.75rem;
+    background: rgba(233, 69, 96, 0.2);
+    color: #e94560;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    margin-left: 6px;
+  }
+
+  .guide-section h4 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #c0c0c0;
+    margin: 16px 0 8px;
+  }
+
+  .guide-section p,
+  .guide-section li {
+    font-size: 0.85rem;
+    color: #b0b0c0;
+    line-height: 1.7;
+  }
+
+  .guide-section ol,
+  .guide-section ul {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+
+  .guide-section li {
+    margin-bottom: 4px;
+  }
+
+  .guide-section strong {
+    color: #eaeaea;
+  }
+
+  .guide-section kbd {
+    font-size: 0.75rem;
+    background: rgba(233, 69, 96, 0.15);
+    color: #e94560;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+
+  .guide-when {
+    font-size: 0.8rem !important;
+    color: #707080 !important;
+    font-style: italic;
+    margin-bottom: 10px;
+  }
+
+  .guide-tip {
+    background: rgba(251, 191, 36, 0.06);
+    border: 1px solid rgba(251, 191, 36, 0.15);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: #a0a0b0;
+  }
+
+  .guide-tip strong {
+    color: #fbbf24;
+  }
+
+  .guide-colors {
+    font-size: 0.85rem;
+    color: #b0b0c0;
+    margin: 8px 0;
+    line-height: 2;
+  }
+
+  .color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+
+  .guide-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 0.8rem;
+  }
+
+  .guide-table th {
+    text-align: left;
+    padding: 6px 10px;
+    color: #a0a0b0;
+    border-bottom: 1px solid #2a2a4a;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .guide-table td {
+    padding: 6px 10px;
+    color: #b0b0c0;
+    border-bottom: 1px solid rgba(42, 42, 74, 0.4);
+  }
+
   @media (max-width: 500px) {
     .features ul { grid-template-columns: 1fr; }
     .download-grid { grid-template-columns: 1fr; }
+    .guide-section { padding: 14px 16px; }
   }
 </style>
 </head>
@@ -337,11 +490,346 @@
       <ul>
         <li>FBX / GLB / OBJ instant preview</li>
         <li>Wireframe, Normals, UV view modes</li>
+        <li>Normal Map &amp; Retopo diagnosis</li>
         <li>15+ mesh quality validations</li>
         <li>Texture auto-matching</li>
-        <li>Thumbnail generation</li>
-        <li>HTML validation report</li>
+        <li>Thumbnail &amp; HTML report</li>
       </ul>
+    </div>
+
+    <!-- Usage Guide -->
+    <div class="divider"></div>
+    <h2>Usage Guide</h2>
+
+    <div class="install-tabs" style="margin-bottom:20px;">
+      <button class="install-tab active" data-lang="ko" onclick="showGuide('ko')">한국어</button>
+      <button class="install-tab" data-lang="en" onclick="showGuide('en')">English</button>
+    </div>
+
+    <!-- Korean Guide -->
+    <div class="guide-content" id="guide-ko">
+      <div class="guide-toc">
+        <a href="#g-loading-ko">모델 불러오기</a>
+        <a href="#g-solid-ko">Solid</a>
+        <a href="#g-wire-ko">Wireframe</a>
+        <a href="#g-normals-ko">Normals</a>
+        <a href="#g-normalmap-ko">Normal Map</a>
+        <a href="#g-uv-ko">UV</a>
+        <a href="#g-retopo-ko">Retopo</a>
+        <a href="#g-validation-ko">검증 패널</a>
+        <a href="#g-export-ko">리포트 / 썸네일</a>
+        <a href="#g-workflow-ko">워크플로우</a>
+      </div>
+
+      <div class="guide-section" id="g-loading-ko">
+        <h3>1. 모델 불러오기</h3>
+        <p class="guide-when">이럴 때: 모델러가 보내준 에셋을 빠르게 확인 / DCC 툴 없이 미리보기 / 여러 에셋 순차 검수</p>
+        <ol>
+          <li>파일을 AssetBox 창으로 <strong>드래그 앤 드롭</strong>합니다.</li>
+          <li>모델이 자동으로 로드되고 뷰포트 중앙에 배치됩니다.</li>
+          <li>마우스: 회전(좌클릭), 줌(스크롤), 패닝(우클릭)</li>
+        </ol>
+        <div class="guide-tip">
+          <strong>Tip:</strong> 모델을 놓쳤을 때 <kbd>F</kbd> 키로 모델 중심으로 카메라 복귀. 한글 경로, 공백 포함 경로도 지원.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-solid-ko">
+        <h3>2. Solid 뷰 <kbd>1</kbd></h3>
+        <p class="guide-when">이럴 때: 전체 외관 확인 / 내장 텍스처 적용 확인 / 실루엣 검토</p>
+        <ul>
+          <li>메시에 구멍이나 찢어진 부분이 없는지 확인</li>
+          <li>실루엣이 자연스러운지, 스케일이 일관적인지 검토</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>배경색 전환:</strong> 하단 색상 원 클릭. 어두운 배경=밝은 에셋, 밝은 배경=어두운 에셋/실루엣
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-wire-ko">
+        <h3>3. Wireframe 뷰 <kbd>2</kbd></h3>
+        <p class="guide-when">이럴 때: 토폴로지 흐름(edge flow) 확인 / 과밀 영역 탐색 / 내부 지오메트리 감지</p>
+        <ul>
+          <li><strong>엣지 플로우:</strong> 관절, 얼굴 주변 루프가 자연스러운지</li>
+          <li><strong>불필요한 밀집:</strong> 특정 영역에 폴리곤이 과도하게 몰려있지 않은지</li>
+          <li><strong>내부 면:</strong> 보이지 않는 곳에 불필요한 면이 숨겨져 있지 않은지</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>Tip:</strong> Retopo 뷰에서 과밀 표시된 영역을 Wireframe에서 다시 확인하면 원인 파악이 쉽습니다.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-normals-ko">
+        <h3>4. Normals 뷰 <kbd>3</kbd></h3>
+        <p class="guide-when">이럴 때: 엔진에서 면이 검게 보일 때 / 라이팅 이상 원인 파악 / 노말 품질 최종 점검</p>
+        <div class="guide-colors">
+          <span class="color-dot" style="background:#0066ff;"></span> <strong>파란 점 (작은):</strong> 정상 노말
+          <br>
+          <span class="color-dot" style="background:#ff0000;"></span> <strong>빨간 점 (큰):</strong> 뒤집힌 노말 — 면이 안쪽을 향함
+        </div>
+        <p>뒤집힌 노말 발견 시 하단 <strong>"Flipped Normals"</strong> 버튼 → 클릭하면 해당 위치로 카메라 이동</p>
+        <div class="guide-tip">
+          <strong>수정:</strong> Maya: Mesh Display &gt; Reverse Normals / Blender: Mesh &gt; Normals &gt; Flip / 3ds Max: Edit Normals &gt; Flip
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-normalmap-ko">
+        <h3>5. Normal Map 뷰 <kbd>4</kbd></h3>
+        <p class="guide-when">이럴 때: 노말 방향 분포 확인 / 베이크 전 기본 노말 상태 확인 / 스무딩 그룹 검토</p>
+        <div class="guide-colors">
+          <span class="color-dot" style="background:#ff4444;"></span> <strong>빨간:</strong> X축(좌우)
+          <span class="color-dot" style="background:#44ff44;margin-left:12px;"></span> <strong>초록:</strong> Y축(상하)
+          <span class="color-dot" style="background:#8888ff;margin-left:12px;"></span> <strong>파란/보라:</strong> Z축(앞뒤)
+        </div>
+        <ul>
+          <li>같은 평면에서 색상이 급변하면 스무딩 문제</li>
+          <li>하드 엣지 경계에서 색상 구분은 정상</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" id="g-uv-ko">
+        <h3>6. UV 뷰 <kbd>5</kbd></h3>
+        <p class="guide-when">이럴 때: 텍스처 매핑 확인 / UV 스트레칭 감지 / 텍셀 밀도 균일성 확인</p>
+        <ul>
+          <li><strong>정사각형 균일:</strong> UV가 잘 펼쳐짐, 텍셀 밀도 균일</li>
+          <li><strong>늘어난 사각형:</strong> UV 스트레칭 → 텍스처가 뭉개짐</li>
+          <li><strong>크기 차이 큼:</strong> 텍셀 밀도 불균일</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>Tip:</strong> 중요 부위(얼굴, 무기)의 체커가 더 작아야(밀도 높아야) 합니다. 시임은 안 보이는 곳에 배치.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-retopo-ko">
+        <h3>7. Retopo 뷰 <kbd>6</kbd></h3>
+        <p class="guide-when">이럴 때: 스캔 데이터 품질 평가 / 리토폴로지 필요성 판단 / 납품 전 메시 품질 점검</p>
+        <div class="guide-colors">
+          <span class="color-dot" style="background:#0066ff;"></span> 과밀 (불필요한 폴리곤)
+          <span class="color-dot" style="background:#4ade80;margin-left:12px;"></span> 적정
+          <span class="color-dot" style="background:#f87171;margin-left:12px;"></span> 과소 (디테일 부족)
+          <span class="color-dot" style="background:#fbbf24;margin-left:12px;"></span> 얇은 삼각형
+        </div>
+        <table class="guide-table">
+          <tr><th>항목</th><th>양호</th><th>문제</th></tr>
+          <tr><td>얇은 삼각형</td><td>&lt; 5%</td><td>&gt; 5% — 텍스처 스트레칭/라이팅 아티팩트</td></tr>
+          <tr><td>과밀 영역</td><td>&lt; 10%</td><td>&gt; 10% — 렌더링 자원 낭비</td></tr>
+          <tr><td>과소 영역</td><td>&lt; 10%</td><td>&gt; 10% — 디테일 부족</td></tr>
+          <tr><td>밀도 편차</td><td>&lt; 100x</td><td>&gt; 1000x — 극단적 불균일</td></tr>
+        </table>
+        <div class="guide-tip">
+          <strong>판정:</strong> "Topology OK"(초록) = 사용 가능 / "Retopology Recommended"(빨간) = 리토폴로지 권장
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-validation-ko">
+        <h3>8. 검증 패널 활용</h3>
+        <p class="guide-when">이럴 때: 프로젝트 기준 충족 확인 / QA 검수 / 아웃소싱 인수</p>
+        <table class="guide-table">
+          <tr><th>카테고리</th><th>주의 항목</th><th>조치</th></tr>
+          <tr><td>Geometry</td><td>Tris/Verts 빨간색</td><td>LOD 필요 또는 폴리곤 감소</td></tr>
+          <tr><td>Topology</td><td>Non-manifold, Flipped</td><td>DCC 툴에서 정리, 노말 뒤집기</td></tr>
+          <tr><td>UV</td><td>No UVs</td><td>UV 펼치기 필수</td></tr>
+          <tr><td>Texture</td><td>Missing 빨간색</td><td>파일 누락 또는 네이밍 규칙 확인</td></tr>
+          <tr><td>Material</td><td>No Material</td><td>머티리얼 할당 확인</td></tr>
+          <tr><td>Transform</td><td>Non-uniform Scale</td><td>Freeze Transform 적용</td></tr>
+        </table>
+      </div>
+
+      <div class="guide-section" id="g-export-ko">
+        <h3>9. 리포트 & 썸네일</h3>
+        <p><strong>Report 버튼:</strong> HTML 검증 보고서 생성 → 모델러에게 수정사항 전달, 품질 이력 관리에 활용</p>
+        <p><strong>Thumbnail 버튼:</strong> PNG 스크린샷 저장 → 에셋 라이브러리 카탈로그, 문서 첨부에 활용</p>
+        <div class="guide-tip">
+          <strong>Tip:</strong> 그리드는 캡처에서 자동 제외. 밝은 배경 전환 시 문서 삽입용으로 깔끔. 어떤 뷰 모드에서든 캡처 가능.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-workflow-ko">
+        <h3>10. 실무 워크플로우</h3>
+        <h4>에셋 납품 검수 (QA)</h4>
+        <ol>
+          <li>에셋 드래그 앤 드롭 → 종합 판정 확인</li>
+          <li>빨간/노란 항목 상세 확인 (Geometry, Topology)</li>
+          <li>Normals 뷰(<kbd>3</kbd>)로 뒤집힌 노말 → 포커스 버튼으로 위치 파악</li>
+          <li>UV 뷰(<kbd>5</kbd>)로 텍셀 밀도, Retopo 뷰(<kbd>6</kbd>)로 메시 품질</li>
+          <li>Report 생성 → 모델러에게 전달</li>
+        </ol>
+        <h4>모델링 중간 점검</h4>
+        <ol>
+          <li>DCC 툴에서 FBX/GLB 익스포트 → AssetBox 드롭</li>
+          <li>Wireframe(<kbd>2</kbd>) → Normals(<kbd>3</kbd>) → UV(<kbd>5</kbd>) → Retopo(<kbd>6</kbd>) 순서로 점검</li>
+          <li>문제 발견 시 DCC 툴로 돌아가 수정 후 재익스포트</li>
+        </ol>
+        <h4>스캔 데이터 평가</h4>
+        <ol>
+          <li>스캔 메시 드롭 → Retopo 뷰(<kbd>6</kbd>) 진단 확인</li>
+          <li>"Retopology Recommended"이면 히트맵으로 문제 영역 파악</li>
+          <li>리토폴로지 도구 처리 후 다시 AssetBox에서 개선 확인</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- English Guide -->
+    <div class="guide-content" id="guide-en" style="display:none;">
+      <div class="guide-toc">
+        <a href="#g-loading-en">Loading Models</a>
+        <a href="#g-solid-en">Solid</a>
+        <a href="#g-wire-en">Wireframe</a>
+        <a href="#g-normals-en">Normals</a>
+        <a href="#g-normalmap-en">Normal Map</a>
+        <a href="#g-uv-en">UV</a>
+        <a href="#g-retopo-en">Retopo</a>
+        <a href="#g-validation-en">Validation</a>
+        <a href="#g-export-en">Report / Thumbnail</a>
+        <a href="#g-workflow-en">Workflows</a>
+      </div>
+
+      <div class="guide-section" id="g-loading-en">
+        <h3>1. Loading Models</h3>
+        <p class="guide-when">When: Quickly reviewing assets / previewing without DCC tools / batch inspection</p>
+        <ol>
+          <li><strong>Drag and drop</strong> a file onto the AssetBox window.</li>
+          <li>Model loads automatically and centers in the viewport.</li>
+          <li>Mouse: rotate (left-click), zoom (scroll), pan (right-click)</li>
+        </ol>
+        <div class="guide-tip">
+          <strong>Tip:</strong> Press <kbd>F</kbd> to refocus on the model. Unicode paths and spaces are supported.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-solid-en">
+        <h3>2. Solid View <kbd>1</kbd></h3>
+        <p class="guide-when">When: Checking overall appearance / verifying embedded textures / silhouette review</p>
+        <ul>
+          <li>Check for holes or tears in the mesh</li>
+          <li>Verify natural silhouette and consistent scale</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>Background:</strong> Click color circles in toolbar. Dark=light assets, Light=dark assets/silhouette
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-wire-en">
+        <h3>3. Wireframe View <kbd>2</kbd></h3>
+        <p class="guide-when">When: Checking edge flow / finding dense areas / detecting internal geometry</p>
+        <ul>
+          <li><strong>Edge flow:</strong> Natural loops around joints and faces</li>
+          <li><strong>Density:</strong> No excessive polygon concentration</li>
+          <li><strong>Internal faces:</strong> No hidden unnecessary geometry</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>Tip:</strong> Cross-reference areas flagged in Retopo view with Wireframe to understand the root cause.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-normals-en">
+        <h3>4. Normals View <kbd>3</kbd></h3>
+        <p class="guide-when">When: Black faces in engine / abnormal lighting / final normal quality check</p>
+        <div class="guide-colors">
+          <span class="color-dot" style="background:#0066ff;"></span> <strong>Blue (small):</strong> Correct normals
+          <br>
+          <span class="color-dot" style="background:#ff0000;"></span> <strong>Red (large):</strong> Flipped normals — faces point inward
+        </div>
+        <p>When flipped normals found → <strong>"Flipped Normals"</strong> button → click to fly camera to location</p>
+        <div class="guide-tip">
+          <strong>Fix:</strong> Maya: Mesh Display &gt; Reverse Normals / Blender: Mesh &gt; Normals &gt; Flip / 3ds Max: Edit Normals &gt; Flip
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-normalmap-en">
+        <h3>5. Normal Map View <kbd>4</kbd></h3>
+        <p class="guide-when">When: Inspecting normal direction distribution / pre-bake check / smoothing group review</p>
+        <div class="guide-colors">
+          <span class="color-dot" style="background:#ff4444;"></span> <strong>Red:</strong> X-axis
+          <span class="color-dot" style="background:#44ff44;margin-left:12px;"></span> <strong>Green:</strong> Y-axis
+          <span class="color-dot" style="background:#8888ff;margin-left:12px;"></span> <strong>Blue/Purple:</strong> Z-axis
+        </div>
+        <ul>
+          <li>Abrupt color changes on flat surfaces = smoothing issues</li>
+          <li>Distinct color separation at hard edges is normal</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" id="g-uv-en">
+        <h3>6. UV View <kbd>5</kbd></h3>
+        <p class="guide-when">When: Verifying texture mapping / detecting UV stretching / checking texel density</p>
+        <ul>
+          <li><strong>Uniform squares:</strong> Well-unwrapped UVs, consistent texel density</li>
+          <li><strong>Stretched rectangles:</strong> UV stretching → blurry textures</li>
+          <li><strong>Varying sizes:</strong> Uneven texel density</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>Tip:</strong> High-importance areas (face, weapon) should have smaller checkers. Place seams in hidden areas.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-retopo-en">
+        <h3>7. Retopo View <kbd>6</kbd></h3>
+        <p class="guide-when">When: Evaluating scan data / deciding retopology need / pre-delivery mesh check</p>
+        <div class="guide-colors">
+          <span class="color-dot" style="background:#0066ff;"></span> Over-dense
+          <span class="color-dot" style="background:#4ade80;margin-left:12px;"></span> Optimal
+          <span class="color-dot" style="background:#f87171;margin-left:12px;"></span> Under-dense
+          <span class="color-dot" style="background:#fbbf24;margin-left:12px;"></span> Thin triangles
+        </div>
+        <table class="guide-table">
+          <tr><th>Metric</th><th>Good</th><th>Bad</th></tr>
+          <tr><td>Thin triangles</td><td>&lt; 5%</td><td>&gt; 5% — stretching/lighting artifacts</td></tr>
+          <tr><td>Over-dense</td><td>&lt; 10%</td><td>&gt; 10% — wasted resources</td></tr>
+          <tr><td>Under-dense</td><td>&lt; 10%</td><td>&gt; 10% — lacking detail</td></tr>
+          <tr><td>Density ratio</td><td>&lt; 100x</td><td>&gt; 1000x — extremely uneven</td></tr>
+        </table>
+        <div class="guide-tip">
+          <strong>Verdict:</strong> "Topology OK" (green) = usable / "Retopology Recommended" (red) = needs work
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-validation-en">
+        <h3>8. Validation Panel</h3>
+        <p class="guide-when">When: Checking project standards / QA inspection / receiving outsourced assets</p>
+        <table class="guide-table">
+          <tr><th>Category</th><th>Watch For</th><th>Action</th></tr>
+          <tr><td>Geometry</td><td>Tris/Verts in red</td><td>LODs or polygon reduction</td></tr>
+          <tr><td>Topology</td><td>Non-manifold, Flipped</td><td>Clean up in DCC, flip normals</td></tr>
+          <tr><td>UV</td><td>No UVs</td><td>UV unwrapping required</td></tr>
+          <tr><td>Texture</td><td>Missing in red</td><td>Check delivery or naming convention</td></tr>
+          <tr><td>Material</td><td>No Material</td><td>Verify material assignment</td></tr>
+          <tr><td>Transform</td><td>Non-uniform Scale</td><td>Apply Freeze Transform</td></tr>
+        </table>
+      </div>
+
+      <div class="guide-section" id="g-export-en">
+        <h3>9. Report & Thumbnail</h3>
+        <p><strong>Report:</strong> HTML validation report → share with modelers for fix requests, maintain quality records</p>
+        <p><strong>Thumbnail:</strong> PNG screenshot → asset library catalogs, document attachments</p>
+        <div class="guide-tip">
+          <strong>Tip:</strong> Grid auto-excluded from capture. Light background = cleaner for documents. Works in any view mode.
+        </div>
+      </div>
+
+      <div class="guide-section" id="g-workflow-en">
+        <h3>10. Workflow Examples</h3>
+        <h4>Asset Delivery QA</h4>
+        <ol>
+          <li>Drop asset → check overall verdict</li>
+          <li>Review red/yellow items (Geometry, Topology)</li>
+          <li>Normals view (<kbd>3</kbd>) → flipped normals → focus button to locate</li>
+          <li>UV view (<kbd>5</kbd>) texel density, Retopo view (<kbd>6</kbd>) mesh quality</li>
+          <li>Generate Report → send to modeler</li>
+        </ol>
+        <h4>Mid-Production Check</h4>
+        <ol>
+          <li>Export FBX/GLB from DCC → drop into AssetBox</li>
+          <li>Wireframe (<kbd>2</kbd>) → Normals (<kbd>3</kbd>) → UV (<kbd>5</kbd>) → Retopo (<kbd>6</kbd>)</li>
+          <li>Fix issues in DCC, re-export, re-check</li>
+        </ol>
+        <h4>Scan Data Evaluation</h4>
+        <ol>
+          <li>Drop scanned mesh → Retopo view (<kbd>6</kbd>)</li>
+          <li>If "Retopology Recommended" → review heatmap for problem areas</li>
+          <li>Process with retopo tools, re-check in AssetBox</li>
+        </ol>
+      </div>
     </div>
     <!-- Install Guide -->
     <div class="divider"></div>
@@ -489,6 +977,14 @@ function showInstall(os) {
 // Auto-select install tab based on detected OS
 const userOS = detectOS();
 if (userOS === "win") showInstall("win");
+
+function showGuide(lang) {
+  document.getElementById("guide-ko").style.display = lang === "ko" ? "block" : "none";
+  document.getElementById("guide-en").style.display = lang === "en" ? "block" : "none";
+  document.querySelectorAll("[data-lang]").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.lang === lang);
+  });
+}
 
 loadRelease();
 </script>
