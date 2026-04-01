@@ -469,6 +469,39 @@
     border-bottom: 1px solid rgba(42, 42, 74, 0.4);
   }
 
+  .lang-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: rgba(22, 33, 62, 0.9);
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+
+  .lang-btn {
+    background: transparent;
+    color: #a0a0b0;
+    border: none;
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .lang-btn.active {
+    background: rgba(233, 69, 96, 0.15);
+    color: #e94560;
+  }
+
+  .lang-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
   @media (max-width: 500px) {
     .features ul { grid-template-columns: 1fr; }
     .download-grid { grid-template-columns: 1fr; }
@@ -477,10 +510,16 @@
 </style>
 </head>
 <body>
+  <!-- Language Toggle -->
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('ko')">한국어</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+  </div>
+
   <div class="container">
     <img class="logo" src="https://raw.githubusercontent.com/sejoung/AssetBox/main/src-tauri/icons/icon.png" alt="AssetBox" />
     <h1>Asset<span>Box</span></h1>
-    <p class="tagline">3D Asset Quick Viewer &amp; Organizer</p>
+    <p class="tagline" data-i18n="tagline"></p>
 
     <div class="version-badge" id="version">Loading...</div>
 
@@ -490,42 +529,28 @@
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
-        <span id="primary-label">Download</span>
+        <span id="primary-label" data-i18n="download"></span>
       </a>
       <p class="os-detected" id="os-detected"></p>
     </div>
 
-    <div class="no-release" id="no-release">
-      No releases available yet. Check back soon or build from source.
-    </div>
+    <div class="no-release" id="no-release" data-i18n="noRelease"></div>
 
     <div class="divider"></div>
 
     <!-- All downloads -->
-    <h2>All Downloads</h2>
+    <h2 data-i18n="allDownloads"></h2>
     <div class="download-grid" id="download-grid"></div>
 
     <!-- Features -->
     <div class="features">
-      <h2>Features</h2>
-      <ul>
-        <li>FBX / GLB / OBJ instant preview</li>
-        <li>Wireframe, Normals, UV view modes</li>
-        <li>Normal Map &amp; Retopo diagnosis</li>
-        <li>15+ mesh quality validations</li>
-        <li>Texture auto-matching</li>
-        <li>Thumbnail &amp; HTML report</li>
-      </ul>
+      <h2 data-i18n="features"></h2>
+      <ul id="features-list"></ul>
     </div>
 
     <!-- Usage Guide -->
     <div class="divider"></div>
-    <h2>Usage Guide</h2>
-
-    <div class="install-tabs" style="margin-bottom:20px;">
-      <button class="install-tab active" data-lang="ko" onclick="showGuide('ko')">한국어</button>
-      <button class="install-tab" data-lang="en" onclick="showGuide('en')">English</button>
-    </div>
+    <h2 data-i18n="usageGuide"></h2>
 
     <!-- Korean Guide -->
     <div class="guide-content" id="guide-ko">
@@ -929,12 +954,9 @@
     </div>
     <!-- Install Guide -->
     <div class="divider"></div>
-    <h2>Installation Guide</h2>
+    <h2 data-i18n="installGuide"></h2>
     <div class="install-guide">
-      <p class="install-note">
-        AssetBox is an open-source project and is not code-signed.
-        Your OS may show a security warning on first launch.
-      </p>
+      <p class="install-note" data-i18n="installNote"></p>
 
       <div class="install-tabs">
         <button class="install-tab active" data-os="mac" onclick="showInstall('mac')">macOS</button>
@@ -942,43 +964,161 @@
       </div>
 
       <div class="install-content" id="install-mac">
-        <ol>
-          <li>Download the <strong>.dmg</strong> file and open it</li>
-          <li>Drag <strong>AssetBox</strong> to the Applications folder</li>
-          <li>Open <strong>Terminal</strong> and run:</li>
-        </ol>
+        <ol id="install-mac-steps"></ol>
         <pre class="install-code">xattr -cr /Applications/AssetBox.app</pre>
-        <ol start="4">
-          <li>Now open AssetBox normally from Applications</li>
-        </ol>
-        <div class="install-alt">
-          <strong>Why?</strong> macOS blocks unsigned apps with "damaged" error. The command above removes the quarantine flag. This is safe for open-source apps you trust.
-        </div>
+        <ol id="install-mac-step4" start="4"></ol>
+        <div class="install-alt" id="install-mac-why"></div>
       </div>
 
       <div class="install-content" id="install-win" style="display:none;">
-        <ol>
-          <li>Download the <strong>.msi</strong> file and run it</li>
-          <li>"Windows protected your PC" (SmartScreen) will appear</li>
-          <li>Click <strong>"More info"</strong></li>
-          <li>Click <strong>"Run anyway"</strong></li>
-          <li>Follow the installer. This warning only appears once.</li>
-        </ol>
-        <div class="install-alt">
-          <strong>Alternative:</strong> Download the <strong>.exe</strong> file for a portable version (no install needed).
-        </div>
+        <ol id="install-win-steps"></ol>
+        <div class="install-alt" id="install-win-alt"></div>
       </div>
     </div>
   </div>
 
   <div class="footer">
     <a href="https://github.com/sejoung/AssetBox">GitHub</a> &nbsp;·&nbsp;
-    <a href="https://github.com/sejoung/AssetBox/releases">All Releases</a> &nbsp;·&nbsp;
+    <a href="https://github.com/sejoung/AssetBox/releases" data-i18n="allReleases"></a> &nbsp;·&nbsp;
     Apache License 2.0
   </div>
 
 <script>
 const REPO = "sejoung/AssetBox";
+
+const I18N = {
+  ko: {
+    tagline: "3D 에셋 빠른 뷰어 & 정리 도구",
+    download: "다운로드",
+    downloadFor: (os) => `${os} 다운로드`,
+    noRelease: "아직 릴리스가 없습니다. 나중에 다시 확인하거나 소스에서 빌드하세요.",
+    noReleaseTag: (tag) => `${tag} 릴리스는 되었지만 다운로드 파일이 아직 없습니다.`,
+    allDownloads: "전체 다운로드",
+    features: "주요 기능",
+    featuresList: [
+      "FBX / GLB / OBJ 즉시 미리보기",
+      "와이어프레임, 노말, UV 뷰 모드",
+      "노말맵 & 리토폴로지 진단",
+      "15개 이상 메시 품질 검증",
+      "텍스처 자동 매칭",
+      "썸네일 & HTML 리포트",
+    ],
+    usageGuide: "사용 가이드",
+    installGuide: "설치 가이드",
+    installNote: "AssetBox는 오픈소스 프로젝트이며 코드 서명이 되어 있지 않습니다. 처음 실행 시 보안 경고가 표시될 수 있습니다.",
+    installMacSteps: [
+      "<strong>.dmg</strong> 파일을 다운로드하고 엽니다",
+      "<strong>AssetBox</strong>를 Applications 폴더로 드래그합니다",
+      "<strong>터미널</strong>을 열고 다음 명령어를 실행합니다:",
+    ],
+    installMacStep4: "이제 Applications에서 AssetBox를 정상적으로 실행합니다",
+    installMacWhy: '<strong>왜?</strong> macOS는 서명되지 않은 앱을 "손상됨" 오류로 차단합니다. 위 명령어는 격리 플래그를 제거합니다. 신뢰하는 오픈소스 앱에 안전합니다.',
+    installWinSteps: [
+      "<strong>.msi</strong> 파일을 다운로드하고 실행합니다",
+      '"Windows가 PC를 보호했습니다" (SmartScreen) 메시지가 나타납니다',
+      '<strong>"추가 정보"</strong>를 클릭합니다',
+      '<strong>"실행"</strong>을 클릭합니다',
+      "설치 프로그램을 따릅니다. 이 경고는 처음 한 번만 나타납니다.",
+    ],
+    installWinAlt: '<strong>대안:</strong> 포터블 버전(설치 불필요)은 <strong>.exe</strong> 파일을 다운로드하세요.',
+    allReleases: "전체 릴리스",
+    unreleased: "미출시",
+  },
+  en: {
+    tagline: "3D Asset Quick Viewer & Organizer",
+    download: "Download",
+    downloadFor: (os) => `Download for ${os}`,
+    noRelease: "No releases available yet. Check back soon or build from source.",
+    noReleaseTag: (tag) => `${tag} is released but no downloadable files yet.`,
+    allDownloads: "All Downloads",
+    features: "Features",
+    featuresList: [
+      "FBX / GLB / OBJ instant preview",
+      "Wireframe, Normals, UV view modes",
+      "Normal Map & Retopo diagnosis",
+      "15+ mesh quality validations",
+      "Texture auto-matching",
+      "Thumbnail & HTML report",
+    ],
+    usageGuide: "Usage Guide",
+    installGuide: "Installation Guide",
+    installNote: "AssetBox is an open-source project and is not code-signed. Your OS may show a security warning on first launch.",
+    installMacSteps: [
+      "Download the <strong>.dmg</strong> file and open it",
+      "Drag <strong>AssetBox</strong> to the Applications folder",
+      "Open <strong>Terminal</strong> and run:",
+    ],
+    installMacStep4: "Now open AssetBox normally from Applications",
+    installMacWhy: '<strong>Why?</strong> macOS blocks unsigned apps with "damaged" error. The command above removes the quarantine flag. This is safe for open-source apps you trust.',
+    installWinSteps: [
+      "Download the <strong>.msi</strong> file and run it",
+      '"Windows protected your PC" (SmartScreen) will appear',
+      'Click <strong>"More info"</strong>',
+      'Click <strong>"Run anyway"</strong>',
+      "Follow the installer. This warning only appears once.",
+    ],
+    installWinAlt: '<strong>Alternative:</strong> Download the <strong>.exe</strong> file for a portable version (no install needed).',
+    allReleases: "All Releases",
+    unreleased: "unreleased",
+  },
+};
+
+let currentLang = "ko";
+
+function detectLang() {
+  const lang = navigator.language || navigator.languages?.[0] || "ko";
+  return lang.startsWith("ko") ? "ko" : "en";
+}
+
+function applyI18n(lang) {
+  currentLang = lang;
+  const t = I18N[lang];
+
+  document.documentElement.lang = lang;
+  document.title = lang === "ko" ? "AssetBox — 다운로드" : "AssetBox — Download";
+
+  // Simple data-i18n text
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.dataset.i18n;
+    if (t[key] && typeof t[key] === "string") {
+      el.innerHTML = t[key];
+    }
+  });
+
+  // Features list
+  const featuresList = document.getElementById("features-list");
+  featuresList.innerHTML = t.featuresList.map((f) => `<li>${f}</li>`).join("");
+
+  // Install Mac steps
+  document.getElementById("install-mac-steps").innerHTML = t.installMacSteps.map((s) => `<li>${s}</li>`).join("");
+  document.getElementById("install-mac-step4").innerHTML = `<li>${t.installMacStep4}</li>`;
+  document.getElementById("install-mac-why").innerHTML = t.installMacWhy;
+
+  // Install Win steps
+  document.getElementById("install-win-steps").innerHTML = t.installWinSteps.map((s) => `<li>${s}</li>`).join("");
+  document.getElementById("install-win-alt").innerHTML = t.installWinAlt;
+
+  // Usage Guide toggle
+  document.getElementById("guide-ko").style.display = lang === "ko" ? "block" : "none";
+  document.getElementById("guide-en").style.display = lang === "en" ? "block" : "none";
+
+  // Lang toggle buttons
+  document.querySelectorAll(".lang-btn").forEach((btn) => {
+    const btnLang = btn.textContent.trim() === "한국어" ? "ko" : "en";
+    btn.classList.toggle("active", btnLang === lang);
+  });
+
+  // Re-apply download label if already loaded
+  if (window._primaryPlatform) {
+    const primaryLabel = document.getElementById("primary-label");
+    primaryLabel.textContent = t.downloadFor(window._primaryPlatform.os);
+  }
+}
+
+function setLang(lang) {
+  applyI18n(lang);
+  try { localStorage.setItem("assetbox-lang", lang); } catch {}
+}
 
 const PLATFORMS = [
   { key: "mac-arm",   os: "macOS",   arch: "Apple Silicon", icon: "\uD83C\uDF4E", format: ".dmg",  match: (n) => /\.dmg$/.test(n) && /aarch64/.test(n) },
@@ -990,7 +1130,6 @@ const PLATFORMS = [
 function detectOS() {
   const ua = navigator.userAgent;
   if (/Mac/.test(ua)) {
-    // Check Apple Silicon via WebGL renderer
     try {
       const canvas = document.createElement("canvas");
       const gl = canvas.getContext("webgl");
@@ -998,13 +1137,14 @@ function detectOS() {
       const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "";
       if (/Apple/.test(renderer)) return "mac-arm";
     } catch {}
-    return "mac-arm"; // Default to ARM for modern Macs
+    return "mac-arm";
   }
   if (/Win/.test(ua)) return "win";
   return null;
 }
 
 async function loadRelease() {
+  const t = I18N[currentLang];
   const versionEl = document.getElementById("version");
   const primaryBtn = document.getElementById("primary-download");
   const primaryLabel = document.getElementById("primary-label");
@@ -1022,7 +1162,6 @@ async function loadRelease() {
 
     versionEl.textContent = tag;
 
-    // Build download cards
     const available = [];
     for (const platform of PLATFORMS) {
       const asset = assets.find((a) => platform.match(a.name));
@@ -1033,12 +1172,11 @@ async function loadRelease() {
 
     if (available.length === 0) {
       noRelease.style.display = "block";
-      noRelease.textContent = `${tag} is released but no downloadable files yet.`;
+      noRelease.textContent = t.noReleaseTag(tag);
       primaryBtn.style.display = "none";
       return;
     }
 
-    // Render grid
     grid.innerHTML = available.map((p) => `
       <a class="download-card" href="${p.url}">
         <span class="os-icon">${p.icon}</span>
@@ -1048,15 +1186,15 @@ async function loadRelease() {
       </a>
     `).join("");
 
-    // Auto-detect primary download
     const userOS = detectOS();
     const primary = available.find((p) => p.key === userOS) || available[0];
+    window._primaryPlatform = primary;
     primaryBtn.href = primary.url;
-    primaryLabel.textContent = `Download for ${primary.os}`;
+    primaryLabel.textContent = t.downloadFor(primary.os);
     osDetected.textContent = `${primary.arch} · ${primary.format} · ${(primary.size / 1024 / 1024).toFixed(1)} MB`;
 
   } catch {
-    versionEl.textContent = "unreleased";
+    versionEl.textContent = t.unreleased;
     primaryBtn.style.display = "none";
     noRelease.style.display = "block";
   }
@@ -1070,7 +1208,6 @@ function showInstall(os) {
   });
 }
 
-// Auto-select install tab based on detected OS
 const userOS = detectOS();
 if (userOS === "win") showInstall("win");
 
@@ -1078,14 +1215,10 @@ function toggleGuide(el) {
   el.classList.toggle("open");
 }
 
-function showGuide(lang) {
-  document.getElementById("guide-ko").style.display = lang === "ko" ? "block" : "none";
-  document.getElementById("guide-en").style.display = lang === "en" ? "block" : "none";
-  document.querySelectorAll("[data-lang]").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.lang === lang);
-  });
-}
-
+// Initialize language
+const savedLang = (() => { try { return localStorage.getItem("assetbox-lang"); } catch { return null; } })();
+const initLang = savedLang || detectLang();
+applyI18n(initLang);
 loadRelease();
 </script>
 </body>
