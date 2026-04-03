@@ -1,6 +1,6 @@
 [package]
 name = "AssetBox"
-version = "0.1.6"
+version = "0.1.7"
 description = "3D Asset Quick Viewer & Organizer"
 authors = ["beni kim"]
 license = "Apache-2.0"
