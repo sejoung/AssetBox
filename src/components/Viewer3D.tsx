@@ -76,6 +76,8 @@ function NormalsHelper({
     });
     const allNormalVerts: number[] = [];
     const allFlippedVerts: number[] = [];
+    model.updateMatrixWorld(true);
+    const modelWorldInverse = model.matrixWorld.clone().invert();
 
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
@@ -138,12 +140,12 @@ function NormalsHelper({
         }
       }
 
-      // Separate normal vs flipped vertex positions
-      const worldMatrix = child.matrixWorld;
+      // Convert each mesh into model-local space so nested part transforms stay aligned.
+      const localMatrix = modelWorldInverse.clone().multiply(child.matrixWorld);
       const p = new THREE.Vector3();
 
       for (let i = 0; i < pos.count; i++) {
-        p.fromBufferAttribute(pos, i).applyMatrix4(worldMatrix);
+        p.fromBufferAttribute(pos, i).applyMatrix4(localMatrix);
         if (flippedVertSet.has(i)) {
           allFlippedVerts.push(p.x, p.y, p.z);
         } else {
@@ -176,7 +178,10 @@ function NormalsHelper({
         center.z += allFlippedVerts[i + 2];
       }
       center.divideScalar(flippedCount);
-      onFlippedInfo?.({ center, count: flippedCount });
+      onFlippedInfo?.({
+        center: group.localToWorld(center.clone()),
+        count: flippedCount,
+      });
     } else {
       onFlippedInfo?.(null);
     }
@@ -474,7 +479,7 @@ function UVOverlay({ model }: { model: THREE.Group }) {
 function WireframeMode({ model }: { model: THREE.Group }) {
   useEffect(() => {
     const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
-    const wireObjects: THREE.LineSegments[] = [];
+    const wireObjects: THREE.Object3D[] = [];
 
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
@@ -489,15 +494,30 @@ function WireframeMode({ model }: { model: THREE.Group }) {
         opacity: 0.3,
       });
 
-      // Add wireframe lines as sibling
-      const wireGeo = new THREE.WireframeGeometry(child.geometry);
-      const wireMat = new THREE.LineBasicMaterial({
+      // Keep the overlay in local space so parent transforms stay aligned.
+      const wireMat = new THREE.MeshBasicMaterial({
         color: 0x4ade80,
         transparent: true,
         opacity: 0.8,
+        wireframe: true,
+        depthWrite: false,
       });
-      const wireframe = new THREE.LineSegments(wireGeo, wireMat);
-      wireframe.applyMatrix4(child.matrixWorld);
+
+      let wireframe: THREE.Object3D;
+      if (child instanceof THREE.SkinnedMesh) {
+        const skinnedWireframe = new THREE.SkinnedMesh(child.geometry, wireMat);
+        skinnedWireframe.bind(child.skeleton, child.bindMatrix);
+        skinnedWireframe.bindMode = child.bindMode;
+        skinnedWireframe.name = `${child.name}_wireframe`;
+        wireframe = skinnedWireframe;
+      } else {
+        wireframe = new THREE.Mesh(child.geometry, wireMat);
+      }
+
+      wireframe.position.copy(child.position);
+      wireframe.quaternion.copy(child.quaternion);
+      wireframe.scale.copy(child.scale);
+      wireframe.renderOrder = child.renderOrder + 1;
       child.parent?.add(wireframe);
       wireObjects.push(wireframe);
     });
@@ -513,8 +533,9 @@ function WireframeMode({ model }: { model: THREE.Group }) {
       // Remove wireframe lines
       for (const wire of wireObjects) {
         wire.parent?.remove(wire);
-        wire.geometry.dispose();
-        (wire.material as THREE.Material).dispose();
+        if ("material" in wire) {
+          (wire.material as THREE.Material).dispose();
+        }
       }
     };
   }, [model]);
