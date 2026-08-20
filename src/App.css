@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Type scale — three steps only.
+   body:  names, values, prose, menu items
+   meta:  secondary detail (file sizes, paths, counts)
+   label: uppercase section headers
+   Sizes live here so "a bit bigger" stays a one-line change. */
+@theme {
+  --text-body: 13px;
+  --text-meta: 11px;
+  --text-label: 11px;
+}
+
 :root {
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
@@ -12,6 +23,10 @@
   --warning: #fbbf24;
   --danger: #f87171;
   --border: #2a2a4a;
+  /* Secondary text floor: 5.4:1 on the panel background. Anything dimmer is
+     decoration only (separators, disabled glyphs). */
+  --text-muted: #8a8a9e;
+  --text-faint: #6a6a80;
 }
 
 * {
@@ -24,7 +39,9 @@
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Inter is not bundled and the Tauri CSP blocks remote fonts, so the system
+     UI face is what actually renders — name it first and be honest about it. */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   overflow: hidden;
   height: 100vh;
   width: 100vw;

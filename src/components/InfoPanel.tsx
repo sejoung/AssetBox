@@ -21,18 +21,24 @@ const StatRow = memo(function StatRow({ item }: { item: ValidationItem }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-4 py-1">
-        <span className="text-xs leading-relaxed whitespace-nowrap" style={{ color: "#a0a0b0" }}>
+        <span
+          className="text-body leading-relaxed whitespace-nowrap"
+          style={{ color: "var(--text-secondary)" }}
+        >
           {item.label}
         </span>
         <span
-          className="text-xs leading-relaxed font-mono font-semibold whitespace-nowrap"
+          className="text-body leading-relaxed tabular-nums font-semibold whitespace-nowrap"
           style={{ color }}
         >
           {item.value}
         </span>
       </div>
       {item.severity !== "good" && item.threshold && (
-        <p className="text-[10px] leading-relaxed mb-0.5 pl-0.5" style={{ color: "#707080" }}>
+        <p
+          className="text-meta leading-relaxed mb-0.5 pl-0.5"
+          style={{ color: "var(--text-muted)" }}
+        >
           {item.threshold}
         </p>
       )}
@@ -54,7 +60,7 @@ const CategoryGroup = memo(function CategoryGroup({ group }: { group: Validation
         style={{ backgroundColor: "rgba(50, 50, 80, 0.5)", borderRadius: "8px 8px 0 0" }}
       >
         <span
-          className="text-[11px] font-bold uppercase tracking-wider leading-relaxed"
+          className="text-label font-bold uppercase tracking-wider leading-relaxed"
           style={{ color: "#b0b0c0" }}
         >
           {group.label}
@@ -85,7 +91,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
         style={{ maxWidth: "calc(100% - 310px)" }}
       >
         <span
-          className="px-3 py-2 rounded-lg text-xs font-mono uppercase font-bold tracking-wider shrink-0 leading-relaxed"
+          className="px-3 py-2 rounded-lg text-body uppercase font-bold tracking-wider shrink-0 leading-relaxed"
           style={{
             backgroundColor: OVERLAY_BG,
             color: "#e94560",
@@ -128,7 +134,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
       >
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-semibold uppercase tracking-wider leading-relaxed cursor-pointer hover:bg-white/5 transition-colors rounded-t-xl sticky top-0"
+          className="w-full flex items-center justify-between px-5 py-3.5 text-body font-semibold uppercase tracking-wider leading-relaxed cursor-pointer hover:bg-white/5 transition-colors rounded-t-xl sticky top-0"
           style={{ color: "#b0b0c0", backgroundColor: OVERLAY_BG }}
         >
           <span>Info</span>
@@ -156,7 +162,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
                   style={{ backgroundColor: "rgba(50, 50, 80, 0.5)", borderRadius: "8px 8px 0 0" }}
                 >
                   <span
-                    className="text-[11px] font-bold uppercase tracking-wider leading-relaxed"
+                    className="text-label font-bold uppercase tracking-wider leading-relaxed"
                     style={{ color: "#b0b0c0" }}
                   >
                     Texture Files
@@ -166,11 +172,11 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
                   {asset.textures.map((tex) => (
                     <div
                       key={tex.filePath}
-                      className="flex items-center gap-2 text-[11px] leading-relaxed min-w-0"
+                      className="flex items-center gap-2 text-body leading-relaxed min-w-0"
                     >
                       <span
-                        className="font-mono uppercase shrink-0"
-                        style={{ color: "#e94560", minWidth: "45px" }}
+                        className="uppercase font-semibold shrink-0"
+                        style={{ color: "#e94560", minWidth: "52px" }}
                       >
                         {tex.type.slice(0, 5)}
                       </span>
@@ -184,7 +190,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
                     </div>
                   ))}
                   {asset.missingTextures.length > 0 && (
-                    <p className="text-[10px] leading-relaxed pt-1" style={{ color: "#fbbf24" }}>
+                    <p className="text-meta leading-relaxed pt-1" style={{ color: "#fbbf24" }}>
                       Missing: {asset.missingTextures.join(", ")}
                     </p>
                   )}

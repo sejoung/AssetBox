@@ -15,7 +15,7 @@ export const DEFAULT_SESSION: TreeSession = {
   expanded: [],
   sort: "name",
   modelsOnly: true,
-  width: 280,
+  width: 300,
 };
 
 const SORT_MODES: SortMode[] = ["name", "size", "modified"];

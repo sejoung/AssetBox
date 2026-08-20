@@ -11,7 +11,7 @@ const FORMAT_COLORS: Record<string, string> = {
 export function Chevron({ open }: { open: boolean }) {
   return (
     <svg
-      className="w-3 h-3 transition-transform duration-150"
+      className="w-3.5 h-3.5 transition-transform duration-150"
       style={{ transform: open ? "rotate(90deg)" : "none", color: "#8a8aa0" }}
       viewBox="0 0 24 24"
       fill="none"
@@ -36,7 +36,7 @@ export const FileIcon = memo(function FileIcon({
 }) {
   if (isDir) {
     return (
-      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="#7a7a95" aria-hidden="true">
+      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#7a7a95" aria-hidden="true">
         <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
       </svg>
     );
@@ -46,7 +46,7 @@ export const FileIcon = memo(function FileIcon({
     const ext = name.split(".").pop()?.toLowerCase() ?? "";
     return (
       <svg
-        className="w-3.5 h-3.5 shrink-0"
+        className="w-4 h-4 shrink-0"
         viewBox="0 0 24 24"
         fill="none"
         stroke={FORMAT_COLORS[ext] ?? "#8b5cf6"}
@@ -63,7 +63,7 @@ export const FileIcon = memo(function FileIcon({
   if (kind === "texture") {
     return (
       <svg
-        className="w-3.5 h-3.5 shrink-0"
+        className="w-4 h-4 shrink-0"
         viewBox="0 0 24 24"
         fill="none"
         stroke="#6a9a7a"
@@ -79,7 +79,7 @@ export const FileIcon = memo(function FileIcon({
 
   return (
     <svg
-      className="w-3.5 h-3.5 shrink-0"
+      className="w-4 h-4 shrink-0"
       viewBox="0 0 24 24"
       fill="none"
       stroke="#5a5a70"

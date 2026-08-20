@@ -19,11 +19,11 @@ import type { BatchProgress } from "../hooks/useBatchValidation";
 import type { ValidationSeverity } from "../types/asset";
 import * as log from "../lib/logger";
 
-const ROW_HEIGHT = 24;
+const ROW_HEIGHT = 28;
 const OVERSCAN = 10;
-const MIN_WIDTH = 200;
+const MIN_WIDTH = 240;
 const MAX_WIDTH = 560;
-const INDENT = 12;
+const INDENT = 14;
 
 const PANEL_BG = "#0d1424";
 const BORDER = "1px solid rgba(60, 60, 100, 0.45)";
@@ -74,7 +74,7 @@ function ToolbarButton({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="flex items-center justify-center w-6 h-6 rounded cursor-pointer transition-colors hover:bg-white/10 disabled:opacity-25 disabled:cursor-default"
+      className="flex items-center justify-center w-7 h-7 rounded cursor-pointer transition-colors hover:bg-white/10 disabled:opacity-25 disabled:cursor-default"
       style={{ color: active ? "#e94560" : "#9a9ab0" }}
     >
       {children}
@@ -123,7 +123,7 @@ const TreeRow = memo(function TreeRow({
         event.preventDefault();
         onContextMenu({ x: event.clientX, y: event.clientY, path: entry.path, isDir });
       }}
-      className="group relative flex items-center gap-1.5 pr-2 cursor-pointer select-none text-xs whitespace-nowrap hover:bg-white/[0.06]"
+      className="group relative flex items-center gap-2 pr-2 cursor-pointer select-none text-body whitespace-nowrap hover:bg-white/[0.06]"
       style={{
         height: ROW_HEIGHT,
         paddingLeft: 6,
@@ -132,15 +132,15 @@ const TreeRow = memo(function TreeRow({
           : revealed
             ? "rgba(255, 255, 255, 0.05)"
             : undefined,
-        outline: focused ? "1px solid rgba(233, 69, 96, 0.65)" : undefined,
-        outlineOffset: -1,
+        outline: focused ? "2px solid rgba(233, 69, 96, 0.9)" : undefined,
+        outlineOffset: -2,
         color: selected ? "#f0f0f5" : "#c2c2d0",
       }}
     >
       {severity && (
         <span
           data-testid="severity-bar"
-          className="absolute left-0 top-0 h-full w-[3px]"
+          className="absolute left-0 top-0 h-full w-[4px]"
           style={{ backgroundColor: SEVERITY_COLORS[severity] }}
         />
       )}
@@ -154,7 +154,7 @@ const TreeRow = memo(function TreeRow({
         />
       ))}
 
-      <span className="w-3 shrink-0 flex items-center justify-center">
+      <span className="w-3.5 shrink-0 flex items-center justify-center">
         {isDir && entry.hasChildren && <Chevron open={expanded} />}
       </span>
 
@@ -163,7 +163,7 @@ const TreeRow = memo(function TreeRow({
           data-testid="tree-thumbnail"
           src={convertFilePath(entry.thumbnailPath)}
           alt=""
-          className="w-4 h-4 shrink-0 rounded-sm object-cover"
+          className="w-5 h-5 shrink-0 rounded-sm object-cover"
         />
       ) : (
         <FileIcon name={entry.name} kind={entry.kind} isDir={isDir} />
@@ -172,16 +172,13 @@ const TreeRow = memo(function TreeRow({
       <span className="truncate flex-1">{entry.name}</span>
 
       {loading && (
-        <span className="text-[10px] shrink-0" style={{ color: "#6a6a80" }}>
+        <span className="text-meta shrink-0" style={{ color: "var(--text-muted)" }}>
           …
         </span>
       )}
 
       {!isDir && (
-        <span
-          className="text-[10px] font-mono shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ color: "#6a6a80" }}
-        >
+        <span className="text-meta shrink-0 tabular-nums" style={{ color: "var(--text-muted)" }}>
           {formatFileSize(entry.fileSize)}
         </span>
       )}
@@ -221,25 +218,25 @@ const SearchRow = memo(function SearchRow({
         event.preventDefault();
         onContextMenu({ x: event.clientX, y: event.clientY, path: entry.path, isDir: false });
       }}
-      className="group relative flex items-center gap-1.5 px-2 cursor-pointer select-none text-xs whitespace-nowrap hover:bg-white/[0.06]"
+      className="group relative flex items-center gap-2 px-2 cursor-pointer select-none text-body whitespace-nowrap hover:bg-white/[0.06]"
       style={{
         height: ROW_HEIGHT,
         backgroundColor: selected ? "rgba(233, 69, 96, 0.20)" : undefined,
-        outline: focused ? "1px solid rgba(233, 69, 96, 0.65)" : undefined,
-        outlineOffset: -1,
+        outline: focused ? "2px solid rgba(233, 69, 96, 0.9)" : undefined,
+        outlineOffset: -2,
         color: selected ? "#f0f0f5" : "#c2c2d0",
       }}
     >
       {severity && (
         <span
-          className="absolute left-0 top-0 h-full w-[3px]"
+          className="absolute left-0 top-0 h-full w-[4px]"
           style={{ backgroundColor: SEVERITY_COLORS[severity] }}
         />
       )}
       <FileIcon name={entry.name} kind={entry.kind} isDir={false} />
       <span className="truncate shrink-0">{entry.name}</span>
       {relative && (
-        <span className="truncate text-[10px]" style={{ color: "#6a6a80" }}>
+        <span className="truncate text-meta" style={{ color: "var(--text-muted)" }}>
           {relative}
         </span>
       )}
@@ -363,7 +360,7 @@ export function FileTreePanel({
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-1.5 py-1" style={{ borderBottom: BORDER }}>
         <ToolbarButton label="Open folder" onClick={onOpenFolder}>
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
           </svg>
         </ToolbarButton>
@@ -374,7 +371,7 @@ export function FileTreePanel({
           disabled={!canGoUp}
         >
           <svg
-            className="w-4 h-4"
+            className="w-[18px] h-[18px]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -388,7 +385,7 @@ export function FileTreePanel({
 
         <ToolbarButton label="Refresh" onClick={() => void tree.refresh()} disabled={!location}>
           <svg
-            className="w-4 h-4"
+            className="w-[18px] h-[18px]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -412,7 +409,7 @@ export function FileTreePanel({
           }}
         >
           <svg
-            className="w-4 h-4"
+            className="w-[18px] h-[18px]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -432,7 +429,7 @@ export function FileTreePanel({
             active={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="5" cy="12" r="1.6" />
               <circle cx="12" cy="12" r="1.6" />
               <circle cx="19" cy="12" r="1.6" />
@@ -442,12 +439,12 @@ export function FileTreePanel({
           {menuOpen && (
             <div
               onClick={(event) => event.stopPropagation()}
-              className="absolute right-0 top-full mt-1 z-40 rounded-lg py-1 min-w-[210px] text-[11px]"
+              className="absolute right-0 top-full mt-1 z-40 rounded-lg py-1 min-w-[220px] text-body"
               style={{ backgroundColor: "#16213e", border: BORDER }}
             >
               <p
-                className="px-3 py-1 text-[9px] uppercase tracking-wider"
-                style={{ color: "#6a6a80" }}
+                className="px-3 py-1 text-label font-semibold uppercase tracking-wider"
+                style={{ color: "var(--text-muted)" }}
               >
                 Sort by
               </p>
@@ -492,8 +489,8 @@ export function FileTreePanel({
                 <>
                   <div className="my-1" style={{ borderTop: BORDER }} />
                   <p
-                    className="px-3 py-1 text-[9px] uppercase tracking-wider"
-                    style={{ color: "#6a6a80" }}
+                    className="px-3 py-1 text-label font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
                   >
                     Recent
                   </p>
@@ -519,17 +516,17 @@ export function FileTreePanel({
       {location && (
         <div
           data-testid="breadcrumb"
-          className="flex items-center gap-0.5 px-2 py-1 overflow-x-auto text-[11px] whitespace-nowrap"
+          className="flex items-center gap-0.5 px-2 py-1.5 overflow-x-auto text-body whitespace-nowrap"
           style={{ borderBottom: BORDER, scrollbarWidth: "none" }}
         >
           {crumbs.map((crumb, index) => (
             <span key={crumb.path} className="flex items-center gap-0.5 shrink-0">
-              {index > 0 && <span style={{ color: "#4a4a60" }}>›</span>}
+              {index > 0 && <span style={{ color: "var(--text-faint)" }}>›</span>}
               <button
                 onClick={() => void tree.navigate(crumb.path)}
                 title={crumb.path}
                 disabled={index === crumbs.length - 1}
-                className="px-1 rounded cursor-pointer hover:bg-white/10 disabled:cursor-default disabled:hover:bg-transparent max-w-[140px] truncate"
+                className="px-1 rounded cursor-pointer hover:bg-white/10 disabled:cursor-default disabled:hover:bg-transparent max-w-[150px] truncate"
                 style={{
                   color: index === crumbs.length - 1 ? "#f0f0f5" : "#9a9ab0",
                   fontWeight: index === crumbs.length - 1 ? 600 : 400,
@@ -556,7 +553,7 @@ export function FileTreePanel({
               }
             }}
             placeholder="Search this folder…"
-            className="w-full px-2 py-1 rounded text-[11px] outline-none"
+            className="w-full px-2 py-1.5 rounded text-body outline-none"
             style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#e0e0ea" }}
           />
         </div>
@@ -570,25 +567,25 @@ export function FileTreePanel({
         className="flex-1 overflow-y-auto overflow-x-hidden"
       >
         {(state.rootLoading || tree.restoring) && (
-          <p className="px-3 py-2 text-[11px]" style={{ color: "#6a6a80" }}>
+          <p className="px-3 py-2 text-body" style={{ color: "var(--text-muted)" }}>
             Loading…
           </p>
         )}
 
         {state.rootError && (
-          <p className="px-3 py-2 text-[11px]" style={{ color: "var(--danger)" }}>
+          <p className="px-3 py-2 text-body" style={{ color: "var(--danger)" }}>
             {state.rootError}
           </p>
         )}
 
         {!location && !tree.restoring && (
-          <p className="px-3 py-4 text-[11px] leading-relaxed" style={{ color: "#6a6a80" }}>
+          <p className="px-3 py-4 text-body leading-relaxed" style={{ color: "var(--text-muted)" }}>
             Open a folder, or drop one anywhere in the window, to review its 3D files side by side.
           </p>
         )}
 
         {location && !state.rootLoading && total === 0 && (
-          <p className="px-3 py-4 text-[11px]" style={{ color: "#6a6a80" }}>
+          <p className="px-3 py-4 text-body" style={{ color: "var(--text-muted)" }}>
             {search.active
               ? search.searching
                 ? "Searching…"
@@ -637,8 +634,8 @@ export function FileTreePanel({
 
       {/* Status bar */}
       <div
-        className="flex items-center gap-2 px-2 py-1 text-[10px]"
-        style={{ borderTop: BORDER, color: "#7a7a90" }}
+        className="flex items-center gap-2 px-2 py-1.5 text-meta"
+        style={{ borderTop: BORDER, color: "var(--text-muted)" }}
       >
         {batchProgress.running ? (
           <>
@@ -697,7 +694,7 @@ export function FileTreePanel({
       {contextTarget && (
         <div
           onClick={(event) => event.stopPropagation()}
-          className="fixed z-50 rounded-lg py-1 min-w-[170px] text-[11px]"
+          className="fixed z-50 rounded-lg py-1 min-w-[180px] text-body"
           style={{
             left: contextTarget.x,
             top: contextTarget.y,

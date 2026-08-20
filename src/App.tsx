@@ -329,7 +329,7 @@ function App() {
           <button
             onClick={() => setSidebarOpen(true)}
             title="Show file tree (Cmd+B)"
-            className="absolute bottom-3 left-3 z-30 px-2 py-1 rounded-lg text-[11px] cursor-pointer hover:brightness-125 transition-all"
+            className="absolute bottom-3 left-3 z-30 px-2.5 py-1.5 rounded-lg text-body cursor-pointer hover:brightness-125 transition-all"
             style={{ backgroundColor: "rgba(16, 24, 48, 0.94)", color: "#c8c8d4" }}
           >
             ☰ Files
@@ -347,7 +347,7 @@ function App() {
         {/* Error toast */}
         {error && (
           <div
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-2 rounded-lg text-body"
             style={{
               backgroundColor: "rgba(248, 113, 113, 0.15)",
               backdropFilter: "blur(12px)",
@@ -357,7 +357,7 @@ function App() {
             <span>{error}</span>
             <button
               onClick={() => invoke("open_log_directory").catch(() => {})}
-              className="shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer hover:brightness-125 transition-all"
+              className="shrink-0 px-2 py-0.5 rounded text-meta font-semibold cursor-pointer hover:brightness-125 transition-all"
               style={{ backgroundColor: "rgba(248, 113, 113, 0.3)", color: "#f87171" }}
               title="Open log directory"
             >
