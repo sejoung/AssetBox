@@ -4,6 +4,7 @@ mod models;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .manage(commands::file_tree::WatcherState::default())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(
@@ -19,6 +20,10 @@ pub fn run() {
     )
     .invoke_handler(tauri::generate_handler![
       commands::file_scan::scan_asset_directory,
+      commands::file_tree::list_directory,
+      commands::file_tree::is_directory,
+      commands::file_tree::watch_directory,
+      commands::file_tree::unwatch_directory,
       commands::thumbnail::save_thumbnail,
       commands::thumbnail::save_text_file,
       commands::log_dir::open_log_directory,

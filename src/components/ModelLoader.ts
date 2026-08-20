@@ -29,6 +29,7 @@ export interface MeshDiagnostics {
 
 export type { RetopoDiagInfo } from "../types/asset";
 import type { RetopoDiagInfo } from "../types/asset";
+import { disposeScene } from "../lib/disposeScene";
 
 export interface LoadedModel {
   scene: THREE.Group;
@@ -417,7 +418,7 @@ export function convertFilePath(filePath: string): string {
   }
 }
 
-export function loadModel(filePath: string): Promise<LoadedModel> {
+function loadModelFresh(filePath: string): Promise<LoadedModel> {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
   const url = filePath.startsWith("http") ? filePath : convertFilePath(filePath);
@@ -449,4 +450,55 @@ export function loadModel(filePath: string): Promise<LoadedModel> {
         reject(new Error(`Unsupported format: ${ext}`));
     }
   });
+}
+
+// ── Prefetch cache ──
+//
+// Sequential review means the next file is usually the one below the current
+// one in the tree, so it is loaded during idle time. Entries are *single use*:
+// a cache hit removes the entry, handing ownership (and the duty to dispose)
+// to the caller. That keeps a scene from ever being handed out twice after the
+// viewer has disposed it.
+
+const PREFETCH_LIMIT = 2;
+const prefetchCache = new Map<string, Promise<LoadedModel>>();
+
+function evictOldest(): void {
+  while (prefetchCache.size >= PREFETCH_LIMIT) {
+    const oldest = prefetchCache.keys().next();
+    if (oldest.done) return;
+    const pending = prefetchCache.get(oldest.value);
+    prefetchCache.delete(oldest.value);
+    // Release whatever the dropped entry ends up loading.
+    pending?.then((model) => disposeScene(model.scene)).catch(() => {});
+  }
+}
+
+/** Warms the cache for `filePath`. Failures are swallowed — this is best effort. */
+export function prefetchModel(filePath: string): void {
+  if (!filePath || prefetchCache.has(filePath)) return;
+  evictOldest();
+
+  const pending = loadModelFresh(filePath);
+  prefetchCache.set(filePath, pending);
+  pending.catch(() => {
+    if (prefetchCache.get(filePath) === pending) prefetchCache.delete(filePath);
+  });
+}
+
+/** Drops every prefetched model. Called when the tree root changes. */
+export function clearPrefetch(): void {
+  for (const pending of prefetchCache.values()) {
+    pending.then((model) => disposeScene(model.scene)).catch(() => {});
+  }
+  prefetchCache.clear();
+}
+
+export function loadModel(filePath: string): Promise<LoadedModel> {
+  const cached = prefetchCache.get(filePath);
+  if (cached) {
+    prefetchCache.delete(filePath);
+    return cached;
+  }
+  return loadModelFresh(filePath);
 }

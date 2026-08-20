@@ -34,6 +34,15 @@
 - 회전 / 줌 / 팬 (모델 크기에 맞게 자동 조정)
 - Studio 환경 라이팅
 
+### File Tree
+폴더를 드롭하거나 **Open Folder**로 열면 좌측 트리에서 파일을 옮겨가며 연속 검수할 수 있습니다.
+- 폴더 단위 lazy 로딩 (하위 폴더는 펼칠 때 읽음)
+- `↑` / `↓` 로 3D 파일 사이 이동 — 뷰 모드(Wire/UV 등)는 파일이 바뀌어도 유지
+- 검수한 파일에는 Good / Warning / Bad 배지 표시
+- **Validate All** — 폴더 전체를 순회하며 일괄 검증 (진행률 표시 / 취소 가능)
+- 생성된 썸네일이 있으면 트리에 미리보기로 표시
+- 폴더 변경 자동 감지, 최근 연 폴더 기록
+
 ### View Modes
 | Mode | Shortcut | Description |
 |------|----------|-------------|
@@ -60,6 +69,14 @@
 
 각 항목은 **Good / Warning / Bad** 등급으로 표시되며, 기준 초과 시 임계값 안내를 제공합니다.
 
+### Shortcuts
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | 이전 / 다음 3D 파일 |
+| `Cmd`(`Ctrl`)`+B` | 파일트리 열기·닫기 |
+| `F` | 모델에 포커스 |
+| `1`~`6` | 뷰 모드 전환 |
+
 ### Thumbnail Generation
 - 현재 뷰포트를 PNG로 캡처 (그리드 자동 제거)
 - 모델 파일 옆에 `_thumbnail.png`으로 저장
@@ -80,7 +97,7 @@
 | 3D Rendering | Three.js, @react-three/fiber, @react-three/drei |
 | Styling | TailwindCSS v4 |
 | Backend | Rust |
-| Testing | Vitest, Testing Library (70 tests) |
+| Testing | Vitest, Testing Library (109 tests) |
 | Linting | ESLint, Prettier |
 | CI/CD | GitHub Actions (macOS + Windows) |
 | Build | Vite |
@@ -155,13 +172,20 @@ src/                              # Frontend (React + TypeScript)
 │   ├── ValidationBadge.tsx       # Good/Warning/Bad badge
 │   ├── ThumbnailButton.tsx       # Thumbnail capture
 │   └── ReportButton.tsx          # HTML report export
+│   └── FileTreePanel.tsx         # Left file tree + batch validation
 ├── hooks/
 │   ├── useAssetValidation.ts     # 6-category validation logic
-│   ├── useFileDropHandler.ts     # Tauri file drop events
+│   ├── useFileDropHandler.ts     # Tauri file/folder drop events
+│   ├── useFileTree.ts            # Lazy directory tree state
+│   ├── useBatchValidation.ts     # Folder-wide sequential validation
 │   └── useTauriCommand.ts        # Tauri IPC wrapper
 ├── lib/
 │   ├── textureRules.ts           # Texture naming conventions
 │   ├── reportGenerator.ts        # HTML report generator
+│   ├── fileTree.ts               # Tree state + flattening (pure)
+│   ├── assetPipeline.ts          # load → scan → validate composition
+│   ├── disposeScene.ts           # three.js resource teardown
+│   ├── recentFolders.ts          # Recent folder persistence
 │   └── overlayStyle.ts           # Shared overlay constants
 └── types/
     └── asset.ts                  # TypeScript type definitions
@@ -171,11 +195,12 @@ src-tauri/                        # Backend (Rust)
 │   ├── lib.rs                    # Tauri app setup
 │   ├── commands/
 │   │   ├── file_scan.rs          # Directory scan & texture discovery
+│   ├── file_tree.rs          # Lazy directory listing & fs watcher
 │   │   └── thumbnail.rs          # Save thumbnail/text files
 │   └── models/
 │       └── asset_info.rs         # Rust data structures
 
-tests/                            # 70 tests across 9 suites
+tests/                            # 109 tests across 13 suites
 ├── components/                   # UI component tests
 ├── hooks/                        # Validation logic tests
 └── lib/                          # Utility tests

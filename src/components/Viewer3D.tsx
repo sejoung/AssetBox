@@ -11,6 +11,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { loadModel, type LoadedModel } from "./ModelLoader";
+import { disposeScene } from "../lib/disposeScene";
 import type { RetopoDiagInfo } from "../types/asset";
 import * as log from "../lib/logger";
 import { ViewerToolbar, type ViewMode } from "./ViewerToolbar";
@@ -21,28 +22,6 @@ import {
   BG_COLORS,
   type BgMode,
 } from "../lib/overlayStyle";
-
-// ── Scene disposal helper ──
-
-function disposeScene(scene: THREE.Object3D): void {
-  scene.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      child.geometry.dispose();
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
-      for (const mat of materials) {
-        if (mat) {
-          for (const key of Object.keys(mat) as (keyof typeof mat)[]) {
-            const value = mat[key];
-            if (value instanceof THREE.Texture) {
-              value.dispose();
-            }
-          }
-          mat.dispose();
-        }
-      }
-    }
-  });
-}
 
 // ── Normals visualization ──
 
@@ -827,8 +806,8 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
     let cancelled = false;
     setLoading(true);
     setLoadingMessage("Loading model...");
-    setViewMode("default");
-    setActiveViewMode("default");
+    // The view mode is deliberately kept across files: reviewing a folder in
+    // Wire or UV mode should not reset to Solid on every selection.
     setFlippedInfo(null);
     setRetopoInfo(null);
     setFocusTarget(null);
@@ -838,7 +817,12 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         if (cancelled) return;
         loadModel(filePath)
           .then((loaded) => {
-            if (cancelled) return;
+            if (cancelled) {
+              // A newer selection won the race — release this model instead of
+              // leaking its geometries and textures.
+              disposeScene(loaded.scene);
+              return;
+            }
             setModel((prev) => {
               if (prev) disposeScene(prev);
               return loaded.scene;
