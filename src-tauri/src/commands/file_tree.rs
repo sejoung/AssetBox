@@ -11,6 +11,14 @@ const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "tga", "tiff", "tif", 
 /// Event emitted to the frontend whenever the watched directory tree changes.
 pub const TREE_CHANGED_EVENT: &str = "file-tree-changed";
 
+fn modified_secs(meta: &std::fs::Metadata) -> u64 {
+    meta.modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 fn extension_of(path: &Path) -> String {
     path.extension()
         .unwrap_or_default()
@@ -103,6 +111,9 @@ pub fn list_directory(path: String, models_only: bool) -> Result<Vec<DirEntryInf
         let is_dir = entry_path.is_dir();
 
         if is_dir {
+            let modified = std::fs::metadata(&entry_path)
+                .map(|m| modified_secs(&m))
+                .unwrap_or(0);
             result.push(DirEntryInfo {
                 name,
                 path: entry_path.to_string_lossy().to_string(),
@@ -111,6 +122,7 @@ pub fn list_directory(path: String, models_only: bool) -> Result<Vec<DirEntryInf
                 kind: "dir".to_string(),
                 has_children: has_relevant_children(&entry_path, models_only),
                 thumbnail_path: None,
+                modified,
             });
             continue;
         }
@@ -124,7 +136,9 @@ pub fn list_directory(path: String, models_only: bool) -> Result<Vec<DirEntryInf
             continue;
         }
 
-        let file_size = std::fs::metadata(&entry_path).map(|m| m.len()).unwrap_or(0);
+        let meta = std::fs::metadata(&entry_path).ok();
+        let file_size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        let modified = meta.as_ref().map(modified_secs).unwrap_or(0);
         let thumbnail_path = if kind == "model" {
             thumbnail_for(&entry_path)
         } else {
@@ -139,6 +153,7 @@ pub fn list_directory(path: String, models_only: bool) -> Result<Vec<DirEntryInf
             kind: kind.to_string(),
             has_children: false,
             thumbnail_path,
+            modified,
         });
     }
 
@@ -210,12 +225,102 @@ pub fn watch_directory(
     Ok(())
 }
 
-/// Stops watching (used when the tree root is cleared).
+const SEARCH_MAX_DEPTH: usize = 8;
+const SEARCH_MAX_RESULTS: usize = 300;
+
+fn search_into(
+    dir: &Path,
+    needle: &str,
+    models_only: bool,
+    depth: usize,
+    results: &mut Vec<DirEntryInfo>,
+) {
+    if depth > SEARCH_MAX_DEPTH || results.len() >= SEARCH_MAX_RESULTS {
+        return;
+    }
+
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    let mut subdirs = Vec::new();
+
+    for entry in entries.flatten() {
+        if results.len() >= SEARCH_MAX_RESULTS {
+            return;
+        }
+
+        let entry_path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if name.starts_with('.') {
+            continue;
+        }
+
+        if entry_path.is_dir() {
+            subdirs.push(entry_path);
+            continue;
+        }
+
+        if is_generated_thumbnail(&name) {
+            continue;
+        }
+
+        let kind = classify(&entry_path);
+        if models_only && kind != "model" {
+            continue;
+        }
+
+        if !name.to_lowercase().contains(needle) {
+            continue;
+        }
+
+        let meta = std::fs::metadata(&entry_path).ok();
+        results.push(DirEntryInfo {
+            name,
+            path: entry_path.to_string_lossy().to_string(),
+            is_dir: false,
+            file_size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+            kind: kind.to_string(),
+            has_children: false,
+            thumbnail_path: if kind == "model" {
+                thumbnail_for(&entry_path)
+            } else {
+                None
+            },
+            modified: meta.as_ref().map(modified_secs).unwrap_or(0),
+        });
+    }
+
+    // Breadth-ish: finish the current level before descending, so shallow
+    // matches rank first when the result cap is hit.
+    for sub in subdirs {
+        search_into(&sub, needle, models_only, depth + 1, results);
+    }
+}
+
+/// Recursive name search under `root`. Results are capped so a search over a
+/// huge library stays responsive; the frontend shows them as a flat list.
 #[tauri::command]
-pub fn unwatch_directory(state: State<'_, WatcherState>) -> Result<(), String> {
-    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    *guard = None;
-    Ok(())
+pub fn search_files(
+    root: String,
+    query: String,
+    models_only: bool,
+) -> Result<Vec<DirEntryInfo>, String> {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let dir = Path::new(&root);
+    if !dir.is_dir() {
+        return Err(format!("Not a directory: {}", root));
+    }
+
+    let mut results = Vec::new();
+    search_into(dir, &needle, models_only, 0, &mut results);
+    info!("search_files: '{}' matched {}", needle, results.len());
+    Ok(results)
 }
 
 #[cfg(test)]
@@ -345,6 +450,53 @@ mod tests {
 
         let unfiltered = list_directory(tmp.path(), false).unwrap();
         assert!(unfiltered.iter().find(|e| e.name == "textures_only").unwrap().has_children);
+    }
+
+    #[test]
+    fn reports_modification_time() {
+        let tmp = TempDir::new("mtime");
+        tmp.file("hero.glb");
+
+        let entries = list_directory(tmp.path(), true).unwrap();
+        assert!(entries[0].modified > 0);
+    }
+
+    #[test]
+    fn searches_recursively_and_case_insensitively() {
+        let tmp = TempDir::new("search");
+        tmp.file("HeroKnight.glb");
+        tmp.file("prop.glb");
+        let nested = tmp.dir("lod");
+        fs::write(nested.join("hero_lod1.fbx"), b"x").unwrap();
+        fs::write(nested.join("wood.png"), b"x").unwrap();
+
+        let hits = search_files(tmp.path(), "HERO".to_string(), true).unwrap();
+        let mut found = names(&hits);
+        found.sort();
+        assert_eq!(found, ["HeroKnight.glb", "hero_lod1.fbx"]);
+
+        // Shallow matches come first so the result cap keeps the closest hits.
+        assert_eq!(hits[0].name, "HeroKnight.glb");
+    }
+
+    #[test]
+    fn search_honours_the_models_only_filter() {
+        let tmp = TempDir::new("search_filter");
+        tmp.file("wood.png");
+        tmp.file("wood.glb");
+
+        assert_eq!(names(&search_files(tmp.path(), "wood".into(), true).unwrap()), ["wood.glb"]);
+
+        let mut all = names(&search_files(tmp.path(), "wood".into(), false).unwrap());
+        all.sort();
+        assert_eq!(all, ["wood.glb", "wood.png"]);
+    }
+
+    #[test]
+    fn search_returns_nothing_for_a_blank_query() {
+        let tmp = TempDir::new("search_blank");
+        tmp.file("hero.glb");
+        assert!(search_files(tmp.path(), "   ".to_string(), true).unwrap().is_empty());
     }
 
     #[test]

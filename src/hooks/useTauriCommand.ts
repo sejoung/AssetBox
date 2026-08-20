@@ -26,6 +26,8 @@ export interface DirEntry {
   kind: EntryKind;
   hasChildren: boolean;
   thumbnailPath: string | null;
+  /** Unix seconds; 0 when unavailable. */
+  modified: number;
 }
 
 /** Lists one directory level. Non-recursive by design — the tree expands lazily. */
@@ -42,6 +44,16 @@ export async function watchDirectory(path: string): Promise<void> {
   return invoke<void>("watch_directory", { path });
 }
 
-export async function unwatchDirectory(): Promise<void> {
-  return invoke<void>("unwatch_directory");
+/** Recursive name search under `root`; results are capped by the backend. */
+export async function searchFiles(
+  root: string,
+  query: string,
+  modelsOnly: boolean
+): Promise<DirEntry[]> {
+  return invoke<DirEntry[]>("search_files", { root, query, modelsOnly });
+}
+
+/** Reveals a file or folder in Finder / Explorer. */
+export async function revealInFileManager(path: string): Promise<void> {
+  return invoke<void>("reveal_in_file_manager", { path });
 }

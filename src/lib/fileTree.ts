@@ -18,8 +18,11 @@ export interface TreeNode {
  * expanding/collapsing touches exactly one entry, which keeps the immutable
  * updates trivial.
  */
+export type SortMode = "name" | "size" | "modified";
+
 export interface TreeState {
   root: string | null;
+  sort: SortMode;
   rootChildren: string[] | null;
   rootLoading: boolean;
   rootError: string | null;
@@ -34,6 +37,7 @@ export interface FlatRow {
 
 export const EMPTY_TREE: TreeState = {
   root: null,
+  sort: "name",
   rootChildren: null,
   rootLoading: false,
   rootError: null,
@@ -52,7 +56,46 @@ export function baseName(path: string): string {
 
 export function parentDir(path: string): string {
   const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return idx > 0 ? path.slice(0, idx) : path;
+  if (idx < 0) return path;
+  if (idx === 0) return "/"; // "/Users" -> "/"
+  const parent = path.slice(0, idx);
+  // "C:\\assets" -> "C:\\", not "C:"
+  return parent.endsWith(":") ? parent + path[idx] : parent;
+}
+
+/** False at a filesystem root, where there is nowhere left to go up to. */
+export function hasParent(path: string | null): boolean {
+  return !!path && parentDir(path) !== path;
+}
+
+export interface Crumb {
+  name: string;
+  path: string;
+}
+
+/** Path split into clickable breadcrumb segments, root first. */
+export function breadcrumbs(path: string | null): Crumb[] {
+  if (!path) return [];
+  const windows = path.includes("\\");
+  const separator = windows ? "\\" : "/";
+  const parts = path.split(/[/\\]/).filter(Boolean);
+  const crumbs: Crumb[] = [];
+
+  let accumulated: string;
+  if (windows) {
+    const drive = parts.shift() ?? "";
+    accumulated = drive;
+    crumbs.push({ name: drive, path: drive + separator });
+  } else {
+    accumulated = "";
+    crumbs.push({ name: "/", path: "/" });
+  }
+
+  for (const part of parts) {
+    accumulated += separator + part;
+    crumbs.push({ name: part, path: accumulated });
+  }
+  return crumbs;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -66,8 +109,31 @@ function makeNode(entry: DirEntry): TreeNode {
   return { entry, children: null, expanded: false, loading: false, error: null };
 }
 
-export function createTree(root: string): TreeState {
-  return { ...EMPTY_TREE, root, rootLoading: true };
+export function createTree(root: string, sort: SortMode = "name"): TreeState {
+  return { ...EMPTY_TREE, root, sort, rootLoading: true };
+}
+
+export function setSort(state: TreeState, sort: SortMode): TreeState {
+  return { ...state, sort };
+}
+
+/**
+ * Folders always come first; files then order by the active mode.
+ * Size and date sort descending because the interesting asset is the biggest
+ * or the newest one, not the smallest.
+ */
+function sortPaths(paths: string[], nodes: Record<string, TreeNode>, sort: SortMode): string[] {
+  return [...paths].sort((left, right) => {
+    const a = nodes[left]?.entry;
+    const b = nodes[right]?.entry;
+    if (!a || !b) return 0;
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    if (!a.isDir) {
+      if (sort === "size" && a.fileSize !== b.fileSize) return b.fileSize - a.fileSize;
+      if (sort === "modified" && a.modified !== b.modified) return b.modified - a.modified;
+    }
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+  });
 }
 
 /** Stores a freshly fetched directory listing for `path` (null = tree root). */
@@ -135,9 +201,9 @@ export function expandedPaths(state: TreeState): string[] {
 export function flattenTree(state: TreeState): FlatRow[] {
   const rows: FlatRow[] = [];
 
-  const walk = (paths: string[] | null, depth: number) => {
-    if (!paths) return;
-    for (const path of paths) {
+  const walk = (unsorted: string[] | null, depth: number) => {
+    if (!unsorted) return;
+    for (const path of sortPaths(unsorted, state.nodes, state.sort)) {
       const node = state.nodes[path];
       if (!node) continue;
       rows.push({ path, depth, node });
@@ -197,3 +263,93 @@ export const SEVERITY_COLORS: Record<ValidationSeverity, string> = {
   warning: "#fbbf24",
   bad: "#f87171",
 };
+
+// ── Row navigation ──
+//
+// Focus moves row by row like a file manager, including folders; selection
+// (the file actually loaded in the viewer) follows focus only for files.
+
+export function rowIndex(rows: FlatRow[], path: string | null): number {
+  return path === null ? -1 : rows.findIndex((row) => row.path === path);
+}
+
+/** Next/previous entry in a visible list. Clamps at both ends. */
+export function stepPath(
+  paths: string[],
+  current: string | null,
+  direction: 1 | -1
+): string | null {
+  if (paths.length === 0) return null;
+
+  const index = current === null ? -1 : paths.indexOf(current);
+  if (index === -1) return direction === 1 ? paths[0] : paths[paths.length - 1];
+
+  const next = index + direction;
+  if (next < 0 || next >= paths.length) return null;
+  return paths[next];
+}
+
+/** Next/previous visible row, folders included. */
+export function stepRow(rows: FlatRow[], current: string | null, direction: 1 | -1): string | null {
+  return stepPath(
+    rows.map((row) => row.path),
+    current,
+    direction
+  );
+}
+
+/** The row one level up from `path`, or null at the top level. */
+export function parentRowPath(rows: FlatRow[], path: string): string | null {
+  const index = rowIndex(rows, path);
+  if (index <= 0) return null;
+
+  const depth = rows[index].depth;
+  if (depth === 0) return null;
+
+  for (let i = index - 1; i >= 0; i--) {
+    if (rows[i].depth === depth - 1) return rows[i].path;
+  }
+  return null;
+}
+
+/** First child of an expanded folder, or null when it has none in view. */
+export function firstChildPath(rows: FlatRow[], path: string): string | null {
+  const index = rowIndex(rows, path);
+  if (index === -1 || index + 1 >= rows.length) return null;
+  return rows[index + 1].depth > rows[index].depth ? rows[index + 1].path : null;
+}
+
+/**
+ * Hides files that came back clean, keeping folders so the tree stays
+ * navigable. Files that have not been validated yet are also hidden — the
+ * point of the filter is to look at known problems.
+ */
+export function filterIssues(
+  rows: FlatRow[],
+  severityByPath: Record<string, ValidationSeverity>
+): FlatRow[] {
+  return rows.filter((row) => {
+    if (row.node.entry.isDir) return true;
+    const severity = severityByPath[row.path];
+    return severity === "warning" || severity === "bad";
+  });
+}
+
+export interface IssueCounts {
+  warning: number;
+  bad: number;
+}
+
+export function countIssues(
+  rows: FlatRow[],
+  severityByPath: Record<string, ValidationSeverity>
+): IssueCounts {
+  let warning = 0;
+  let bad = 0;
+  for (const row of rows) {
+    const severity = severityByPath[row.path];
+    if (severity === "warning") warning++;
+    else if (severity === "bad") bad++;
+  }
+  return { warning, bad };
+}

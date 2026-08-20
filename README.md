@@ -34,14 +34,17 @@
 - 회전 / 줌 / 팬 (모델 크기에 맞게 자동 조정)
 - Studio 환경 라이팅
 
-### File Tree
-폴더를 드롭하거나 **Open Folder**로 열면 좌측 트리에서 파일을 옮겨가며 연속 검수할 수 있습니다.
+### File Browser
+폴더를 드롭하거나 툴바에서 열면 좌측 탐색기에서 파일을 옮겨가며 연속 검수할 수 있습니다.
+- **탐색기식 이동** — 브레드크럼 클릭 / `↑` 버튼으로 상위·하위 폴더 자유 이동
 - 폴더 단위 lazy 로딩 (하위 폴더는 펼칠 때 읽음)
-- `↑` / `↓` 로 3D 파일 사이 이동 — 뷰 모드(Wire/UV 등)는 파일이 바뀌어도 유지
-- 검수한 파일에는 Good / Warning / Bad 배지 표시
-- **Validate All** — 폴더 전체를 순회하며 일괄 검증 (진행률 표시 / 취소 가능)
-- 생성된 썸네일이 있으면 트리에 미리보기로 표시
-- 폴더 변경 자동 감지, 최근 연 폴더 기록
+- **이름 검색** (`Cmd+F`) — 하위 폴더까지 재귀 검색, 결과는 평면 목록
+- 검수한 파일은 행 왼쪽에 Good / Warning / Bad 색상 바로 표시, **문제만 보기** 필터 지원
+- **Validate all** — 폴더 전체를 순회하며 일괄 검증 (진행률 / 취소 지원)
+- 정렬: 이름 / 크기 / 수정일
+- 우클릭 → Finder(탐색기)에서 보기 · 경로 복사 · 이 폴더 열기
+- 생성된 썸네일을 행 아이콘으로 표시, 폴더 변경 자동 감지
+- 마지막 위치·펼침 상태·정렬·패널 폭을 다음 실행에 복원
 
 ### View Modes
 | Mode | Shortcut | Description |
@@ -72,8 +75,12 @@
 ### Shortcuts
 | Key | Action |
 |-----|--------|
-| `↑` / `↓` | 이전 / 다음 3D 파일 |
-| `Cmd`(`Ctrl`)`+B` | 파일트리 열기·닫기 |
+| `↑` / `↓` | 위 / 아래 항목으로 이동 (파일이면 즉시 로드) |
+| `→` | 폴더 펼치기 / 첫 하위 항목으로 |
+| `←` | 폴더 접기 / 상위 항목으로 (최상위에서는 상위 폴더로 이동) |
+| `Enter` | 폴더 안으로 이동 |
+| `Cmd`(`Ctrl`)`+F` | 검색 |
+| `Cmd`(`Ctrl`)`+B` | 파일 탐색기 열기·닫기 |
 | `F` | 모델에 포커스 |
 | `1`~`6` | 뷰 모드 전환 |
 
@@ -97,7 +104,7 @@
 | 3D Rendering | Three.js, @react-three/fiber, @react-three/drei |
 | Styling | TailwindCSS v4 |
 | Backend | Rust |
-| Testing | Vitest, Testing Library (109 tests) |
+| Testing | Vitest (136 tests), Rust unit tests (11) |
 | Linting | ESLint, Prettier |
 | CI/CD | GitHub Actions (macOS + Windows) |
 | Build | Vite |
@@ -172,7 +179,8 @@ src/                              # Frontend (React + TypeScript)
 │   ├── ValidationBadge.tsx       # Good/Warning/Bad badge
 │   ├── ThumbnailButton.tsx       # Thumbnail capture
 │   └── ReportButton.tsx          # HTML report export
-│   └── FileTreePanel.tsx         # Left file tree + batch validation
+│   ├── FileTreePanel.tsx         # File browser (navigation, search, batch)
+│   └── FileTreeIcons.tsx         # Format-coloured row icons
 ├── hooks/
 │   ├── useAssetValidation.ts     # 6-category validation logic
 │   ├── useFileDropHandler.ts     # Tauri file/folder drop events
@@ -186,6 +194,7 @@ src/                              # Frontend (React + TypeScript)
 │   ├── assetPipeline.ts          # load → scan → validate composition
 │   ├── disposeScene.ts           # three.js resource teardown
 │   ├── recentFolders.ts          # Recent folder persistence
+│   ├── treeSession.ts            # Location / expansion / sort persistence
 │   └── overlayStyle.ts           # Shared overlay constants
 └── types/
     └── asset.ts                  # TypeScript type definitions
@@ -195,12 +204,13 @@ src-tauri/                        # Backend (Rust)
 │   ├── lib.rs                    # Tauri app setup
 │   ├── commands/
 │   │   ├── file_scan.rs          # Directory scan & texture discovery
-│   ├── file_tree.rs          # Lazy directory listing & fs watcher
+│   ├── file_tree.rs          # Lazy listing, search & fs watcher
+│   ├── reveal.rs             # Reveal in Finder / Explorer
 │   │   └── thumbnail.rs          # Save thumbnail/text files
 │   └── models/
 │       └── asset_info.rs         # Rust data structures
 
-tests/                            # 109 tests across 13 suites
+tests/                            # 136 tests across 14 suites
 ├── components/                   # UI component tests
 ├── hooks/                        # Validation logic tests
 └── lib/                          # Utility tests

@@ -2,6 +2,15 @@ import { describe, it, expect } from "vitest";
 import {
   EMPTY_TREE,
   baseName,
+  breadcrumbs,
+  countIssues,
+  filterIssues,
+  firstChildPath,
+  hasParent,
+  parentRowPath,
+  setSort,
+  stepPath,
+  stepRow,
   createTree,
   expandedPaths,
   flattenTree,
@@ -28,10 +37,11 @@ function dir(path: string, hasChildren = true): DirEntry {
     kind: "dir",
     hasChildren,
     thumbnailPath: null,
+    modified: 0,
   };
 }
 
-function model(path: string, fileSize = 1024): DirEntry {
+function model(path: string, fileSize = 1024, modified = 0): DirEntry {
   return {
     name: baseName(path),
     path,
@@ -40,6 +50,7 @@ function model(path: string, fileSize = 1024): DirEntry {
     kind: "model",
     hasChildren: false,
     thumbnailPath: null,
+    modified,
   };
 }
 
@@ -70,6 +81,31 @@ describe("path helpers", () => {
   it("extracts parent directory", () => {
     expect(parentDir("/Users/me/assets/hero.glb")).toBe("/Users/me/assets");
     expect(parentDir("C:\\assets\\hero.glb")).toBe("C:\\assets");
+  });
+
+  it("stops at the filesystem root when walking up", () => {
+    expect(parentDir("/Users")).toBe("/");
+    expect(parentDir("/")).toBe("/");
+    expect(parentDir("C:\\assets")).toBe("C:\\");
+
+    expect(hasParent("/Users/me")).toBe(true);
+    expect(hasParent("/")).toBe(false);
+    expect(hasParent(null)).toBe(false);
+  });
+
+  it("splits a path into breadcrumb segments", () => {
+    expect(breadcrumbs("/Users/me/assets")).toEqual([
+      { name: "/", path: "/" },
+      { name: "Users", path: "/Users" },
+      { name: "me", path: "/Users/me" },
+      { name: "assets", path: "/Users/me/assets" },
+    ]);
+    expect(breadcrumbs("C:\\assets\\hero")).toEqual([
+      { name: "C:", path: "C:\\" },
+      { name: "assets", path: "C:\\assets" },
+      { name: "hero", path: "C:\\assets\\hero" },
+    ]);
+    expect(breadcrumbs(null)).toEqual([]);
   });
 
   it("formats file sizes", () => {
@@ -107,12 +143,35 @@ describe("tree state", () => {
     expect(rows.map((row) => row.depth)).toEqual([0, 1, 0, 0]);
   });
 
-  it("sorts nothing itself — listing order from the backend is preserved", () => {
-    const state = setChildren(createTree("/root"), null, [
-      model("/root/z.glb"),
-      model("/root/a.glb"),
+  it("orders folders first, then files by the active sort mode", () => {
+    let state = createTree("/root");
+    state = setChildren(state, null, [
+      model("/root/big.glb", 900, 10),
+      model("/root/apple.glb", 100, 30),
+      dir("/root/sub"),
+      model("/root/mid.glb", 500, 20),
     ]);
-    expect(flattenTree(state).map((row) => row.path)).toEqual(["/root/z.glb", "/root/a.glb"]);
+
+    expect(flattenTree(state).map((row) => row.path)).toEqual([
+      "/root/sub",
+      "/root/apple.glb",
+      "/root/big.glb",
+      "/root/mid.glb",
+    ]);
+
+    // Size and date sort descending — the biggest and the newest come first.
+    expect(flattenTree(setSort(state, "size")).map((row) => row.path)).toEqual([
+      "/root/sub",
+      "/root/big.glb",
+      "/root/mid.glb",
+      "/root/apple.glb",
+    ]);
+    expect(flattenTree(setSort(state, "modified")).map((row) => row.path)).toEqual([
+      "/root/sub",
+      "/root/apple.glb",
+      "/root/mid.glb",
+      "/root/big.glb",
+    ]);
   });
 
   it("keeps expansion state when a listing is refreshed", () => {
@@ -186,5 +245,66 @@ describe("stepModelPath", () => {
 
   it("falls back to the first model when the selection is not in view", () => {
     expect(stepModelPath(rows, "/elsewhere/x.glb", 1)).toBe("/root/sub/c.obj");
+  });
+});
+
+describe("row navigation", () => {
+  const rows = flattenTree(setExpanded(buildTree(), "/root/sub", true));
+  // Visible order: sub, sub/c.obj, a.glb, b.fbx
+
+  it("steps over every row, folders included", () => {
+    expect(stepRow(rows, null, 1)).toBe("/root/sub");
+    expect(stepRow(rows, "/root/sub", 1)).toBe("/root/sub/c.obj");
+    expect(stepRow(rows, "/root/sub/c.obj", 1)).toBe("/root/a.glb");
+    expect(stepRow(rows, "/root/a.glb", -1)).toBe("/root/sub/c.obj");
+  });
+
+  it("clamps at both ends", () => {
+    expect(stepRow(rows, "/root/b.fbx", 1)).toBeNull();
+    expect(stepRow(rows, "/root/sub", -1)).toBeNull();
+    expect(stepRow([], null, 1)).toBeNull();
+  });
+
+  it("steps a plain path list the same way (search results)", () => {
+    const paths = ["/a.glb", "/b.glb"];
+    expect(stepPath(paths, null, 1)).toBe("/a.glb");
+    expect(stepPath(paths, null, -1)).toBe("/b.glb");
+    expect(stepPath(paths, "/a.glb", 1)).toBe("/b.glb");
+    expect(stepPath(paths, "/b.glb", 1)).toBeNull();
+  });
+
+  it("finds the parent row one level up", () => {
+    expect(parentRowPath(rows, "/root/sub/c.obj")).toBe("/root/sub");
+    // Top-level rows have no parent in view — the caller navigates up instead.
+    expect(parentRowPath(rows, "/root/a.glb")).toBeNull();
+    expect(parentRowPath(rows, "/root/sub")).toBeNull();
+  });
+
+  it("finds the first child of an expanded folder", () => {
+    expect(firstChildPath(rows, "/root/sub")).toBe("/root/sub/c.obj");
+    expect(firstChildPath(rows, "/root/a.glb")).toBeNull();
+
+    const collapsed = flattenTree(buildTree());
+    expect(firstChildPath(collapsed, "/root/sub")).toBeNull();
+  });
+});
+
+describe("issue filtering", () => {
+  const rows = flattenTree(setExpanded(buildTree(), "/root/sub", true));
+  const severity = { "/root/a.glb": "bad", "/root/b.fbx": "good" } as const;
+
+  it("keeps folders and problem files, drops the rest", () => {
+    expect(filterIssues(rows, severity).map((row) => row.path)).toEqual([
+      "/root/sub",
+      "/root/a.glb",
+    ]);
+  });
+
+  it("counts warnings and failures", () => {
+    expect(countIssues(rows, severity)).toEqual({ warning: 0, bad: 1 });
+    expect(countIssues(rows, { "/root/a.glb": "warning", "/root/sub/c.obj": "warning" })).toEqual({
+      warning: 2,
+      bad: 0,
+    });
   });
 });

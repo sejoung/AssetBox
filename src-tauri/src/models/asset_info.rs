@@ -29,4 +29,6 @@ pub struct DirEntryInfo {
     pub kind: String,
     pub has_children: bool,
     pub thumbnail_path: Option<String>,
+    /// Unix seconds; 0 when the platform does not report it.
+    pub modified: u64,
 }

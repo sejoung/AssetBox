@@ -8,8 +8,16 @@ import { useFileDropHandler } from "./hooks/useFileDropHandler";
 import { useFileTree } from "./hooks/useFileTree";
 import { useBatchValidation } from "./hooks/useBatchValidation";
 import { inspectModel } from "./lib/assetPipeline";
-import { isModelPath, parentDir, stepModelPath } from "./lib/fileTree";
-import { getRecentFolders, pushRecentFolder } from "./lib/recentFolders";
+import {
+  filterIssues,
+  firstChildPath,
+  isModelPath,
+  parentDir,
+  parentRowPath,
+  stepModelPath,
+  stepPath,
+  type FlatRow,
+} from "./lib/fileTree";
 import { isDirectory } from "./hooks/useTauriCommand";
 import { clearPrefetch, prefetchModel } from "./components/ModelLoader";
 import { invoke } from "@tauri-apps/api/core";
@@ -30,26 +38,17 @@ function scheduleIdle(task: () => void): () => void {
 
 function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const [asset, setAsset] = useState<AssetInfo | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [modelsOnly, setModelsOnly] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [onlyIssues, setOnlyIssues] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [severityByPath, setSeverityByPath] = useState<Record<string, ValidationSeverity>>({});
-  const [recentFolders, setRecentFolders] = useState<string[]>(() => getRecentFolders());
   const viewerRef = useRef<Viewer3DHandle>(null);
 
-  const tree = useFileTree(modelsOnly);
-  const { openRoot: openTreeRoot, rows, state: treeState } = tree;
-
-  // Refs let the window-level keyboard handler read current values without
-  // being re-registered on every selection.
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
-  const selectedRef = useRef<string | null>(filePath);
-  selectedRef.current = filePath;
-  const rootRef = useRef<string | null>(treeState.root);
-  rootRef.current = treeState.root;
+  const tree = useFileTree();
 
   /**
    * Bumped on every selection. An in-flight inspection compares the epoch it
@@ -70,26 +69,61 @@ function App() {
     setFilePath(path);
   }, []);
 
-  const openRoot = useCallback(
-    async (dir: string) => {
-      clearPrefetch();
-      setRecentFolders(pushRecentFolder(dir));
-      await openTreeRoot(dir);
+  /** Focus follows the keyboard and the mouse; files additionally load. */
+  const activate = useCallback(
+    (path: string, isDir: boolean) => {
+      setFocusedPath(path);
+      if (!isDir) selectFile(path);
     },
-    [openTreeRoot]
+    [selectFile]
   );
+
+  // Rows actually on screen — the keyboard walks this exact list.
+  const visibleRows: FlatRow[] = useMemo(
+    () => (onlyIssues ? filterIssues(tree.rows, severityByPath) : tree.rows),
+    [onlyIssues, tree.rows, severityByPath]
+  );
+
+  const navPaths = useMemo(
+    () =>
+      tree.search.active
+        ? tree.search.results.map((entry) => entry.path)
+        : visibleRows.map((row) => row.path),
+    [tree.search.active, tree.search.results, visibleRows]
+  );
+
+  // The window-level handler reads live values here instead of re-subscribing.
+  const navRef = useRef({ rows: visibleRows, paths: navPaths, tree, focused: focusedPath });
+  navRef.current = { rows: visibleRows, paths: navPaths, tree, focused: focusedPath };
+
+  const navigateTo = useCallback(
+    async (dir: string) => {
+      await tree.navigate(dir);
+    },
+    [tree]
+  );
+
+  // Prefetched models belong to the folder we just left.
+  useEffect(() => {
+    clearPrefetch();
+  }, [tree.location]);
+
+  // After moving up, put the cursor on the folder we came from.
+  useEffect(() => {
+    if (tree.revealed) setFocusedPath(tree.revealed);
+  }, [tree.revealed]);
 
   const handleOpenFolder = useCallback(async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({ directory: true, multiple: false });
-      if (typeof selected === "string") await openRoot(selected);
+      if (typeof selected === "string") await navigateTo(selected);
     } catch (err) {
       log.error("Open folder failed:", err);
     }
-  }, [openRoot]);
+  }, [navigateTo]);
 
-  /** Folders become the tree root; model files are selected (and reveal their folder). */
+  /** Folders become the current location; model files are selected. */
   const handleDroppedPaths = useCallback(
     async (paths: string[]) => {
       setError(null);
@@ -102,7 +136,7 @@ function App() {
           directory = !isModelPath(path);
         }
         if (directory) {
-          await openRoot(path);
+          await navigateTo(path);
           return;
         }
       }
@@ -110,13 +144,13 @@ function App() {
       const model = paths.find(isModelPath);
       if (!model) return;
 
-      // Only re-root when the file lives outside the folder already open,
-      // so dropping a sibling keeps the current expansion state.
+      // Only re-navigate when the file lives outside the current folder, so
+      // dropping a sibling keeps the expansion state.
       const parent = parentDir(model);
-      if (rootRef.current !== parent) await openRoot(parent);
-      selectFile(model);
+      if (navRef.current.tree.location !== parent) await navigateTo(parent);
+      activate(model, false);
     },
-    [openRoot, selectFile]
+    [activate, navigateTo]
   );
 
   useFileDropHandler(handleDroppedPaths);
@@ -158,47 +192,98 @@ function App() {
     setValidation(null);
   }, []);
 
-  // ↑/↓ steps through model files; Cmd/Ctrl+B toggles the tree.
+  // File-manager style keyboard navigation over the tree.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return;
       }
 
-      if ((event.metaKey || event.ctrlKey) && (event.key === "b" || event.key === "B")) {
+      const { rows, paths, tree: current, focused } = navRef.current;
+      const modifier = event.metaKey || event.ctrlKey;
+
+      if (modifier && (event.key === "b" || event.key === "B")) {
         event.preventDefault();
         setSidebarOpen((open) => !open);
         return;
       }
+      if (modifier && (event.key === "f" || event.key === "F")) {
+        event.preventDefault();
+        setSidebarOpen(true);
+        setSearchOpen(true);
+        return;
+      }
+      if (event.key === "Escape" && current.search.active) {
+        current.search.setQuery("");
+        setSearchOpen(false);
+        return;
+      }
+      if (modifier || event.altKey) return;
 
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        const next = stepPath(paths, focused, event.key === "ArrowDown" ? 1 : -1);
+        if (!next) return;
+        event.preventDefault();
+        const row = rows.find((candidate) => candidate.path === next);
+        activate(next, row?.node.entry.isDir ?? false);
+        return;
+      }
 
-      const next = stepModelPath(
-        rowsRef.current,
-        selectedRef.current,
-        event.key === "ArrowDown" ? 1 : -1
-      );
-      if (!next) return;
-      event.preventDefault();
-      selectFile(next);
+      // Expansion and parent traversal only make sense in tree mode.
+      if (current.search.active || !focused) return;
+      const row = rows.find((candidate) => candidate.path === focused);
+
+      if (event.key === "ArrowRight") {
+        if (!row?.node.entry.isDir) return;
+        event.preventDefault();
+        if (!row.node.expanded) {
+          void current.setExpanded(focused, true);
+        } else {
+          const child = firstChildPath(rows, focused);
+          if (child) {
+            const childRow = rows.find((candidate) => candidate.path === child);
+            activate(child, childRow?.node.entry.isDir ?? false);
+          }
+        }
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        if (row?.node.entry.isDir && row.node.expanded) {
+          void current.setExpanded(focused, false);
+          return;
+        }
+        const parent = row ? parentRowPath(rows, row.path) : null;
+        if (parent) {
+          activate(parent, true);
+          return;
+        }
+        void current.navigateUp();
+        return;
+      }
+
+      if (event.key === "Enter" && row?.node.entry.isDir) {
+        event.preventDefault();
+        void current.navigate(row.path);
+      }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectFile]);
+  }, [activate]);
 
-  // Once the current file is inspected, warm the next one in the list.
+  // Once the current file is inspected, warm the next model in the list.
   useEffect(() => {
-    if (!asset || batch.progress.running) return;
-    const next = stepModelPath(rowsRef.current, asset.filePath, 1);
+    if (!asset || batch.progress.running || tree.search.active) return;
+    const next = stepModelPath(navRef.current.rows, asset.filePath, 1);
     if (!next) return;
     return scheduleIdle(() => prefetchModel(next));
-  }, [asset, batch.progress.running]);
+  }, [asset, batch.progress.running, tree.search.active]);
 
   const handleValidateAll = useCallback(() => {
-    if (treeState.root) void batch.run(treeState.root);
-  }, [batch, treeState.root]);
+    if (tree.location) void batch.run(tree.location);
+  }, [batch, tree.location]);
 
   const viewer = useMemo(
     () =>
@@ -218,14 +303,16 @@ function App() {
       {sidebarOpen && (
         <FileTreePanel
           tree={tree}
+          rows={visibleRows}
           selectedPath={filePath}
-          onSelect={selectFile}
+          focusedPath={focusedPath}
+          onActivate={activate}
           severityByPath={severityByPath}
-          modelsOnly={modelsOnly}
-          onModelsOnlyChange={setModelsOnly}
           onOpenFolder={handleOpenFolder}
-          recentFolders={recentFolders}
-          onOpenRecent={openRoot}
+          onlyIssues={onlyIssues}
+          onOnlyIssuesChange={setOnlyIssues}
+          searchOpen={searchOpen}
+          onSearchOpenChange={setSearchOpen}
           batchProgress={batch.progress}
           onValidateAll={handleValidateAll}
           onCancelBatch={batch.cancel}
