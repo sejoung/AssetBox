@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
 
 const PACKAGE_JSON = "package.json";
+const PACKAGE_LOCK = "package-lock.json";
 const TAURI_CONF = "src-tauri/tauri.conf.json";
 const CARGO_TOML = "src-tauri/Cargo.toml";
 
@@ -61,19 +62,26 @@ pkg.version = newVersion;
 writeJson(PACKAGE_JSON, pkg);
 console.log(`  ✓ ${PACKAGE_JSON}`);
 
-// 2. Update tauri.conf.json
+// 2. Update package-lock.json (version fields only; deps are managed by npm)
+const lock = readJson(PACKAGE_LOCK);
+lock.version = newVersion;
+if (lock.packages && lock.packages[""]) lock.packages[""].version = newVersion;
+writeJson(PACKAGE_LOCK, lock);
+console.log(`  ✓ ${PACKAGE_LOCK}`);
+
+// 3. Update tauri.conf.json
 const tauriConf = readJson(TAURI_CONF);
 tauriConf.version = newVersion;
 writeJson(TAURI_CONF, tauriConf);
 console.log(`  ✓ ${TAURI_CONF}`);
 
-// 3. Update Cargo.toml
+// 4. Update Cargo.toml
 let cargoToml = readFileSync(CARGO_TOML, "utf-8");
 cargoToml = cargoToml.replace(/^version = ".*"$/m, `version = "${newVersion}"`);
 writeFileSync(CARGO_TOML, cargoToml);
 console.log(`  ✓ ${CARGO_TOML}`);
 
-// 4. Update Cargo.lock
+// 5. Update Cargo.lock
 try {
   execSync("cargo generate-lockfile", { cwd: "src-tauri", stdio: "ignore" });
   console.log("  ✓ Cargo.lock");
@@ -81,8 +89,8 @@ try {
   console.log("  ⚠ Cargo.lock (skipped — cargo not available)");
 }
 
-// 5. Git commit + tag
-execSync(`git add ${PACKAGE_JSON} ${TAURI_CONF} ${CARGO_TOML} src-tauri/Cargo.lock`, {
+// 6. Git commit + tag
+execSync(`git add ${PACKAGE_JSON} ${PACKAGE_LOCK} ${TAURI_CONF} ${CARGO_TOML} src-tauri/Cargo.lock`, {
   stdio: "inherit",
 });
 execSync(`git commit -m "chore: bump version to ${newVersion}"`, { stdio: "inherit" });
