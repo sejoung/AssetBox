@@ -33,6 +33,26 @@ function fixture() {
   return { a, b, first, second, model };
 }
 
+it("follows animated skin deformation without changing the weight values", () => {
+  const { a, b, first, model } = fixture();
+  model.animations = [new THREE.AnimationClip("Motion", 1, [])];
+  const overlay = createBoneInfluenceOverlay(inspectBoneInfluence(model, a.uuid)!);
+  b.rotation.z = 0.75;
+  model.updateWorldMatrix(true, true);
+  overlay.update();
+  const surface = overlay.group.children[0] as THREE.Mesh;
+  const positions = surface.geometry.getAttribute("position");
+  for (let vertex = 0; vertex < positions.count; vertex++) {
+    expect(
+      new THREE.Vector3()
+        .fromBufferAttribute(positions, vertex)
+        .distanceTo(first.getVertexPosition(vertex, new THREE.Vector3()))
+    ).toBeLessThan(1e-6);
+  }
+  expect(surface.geometry.getAttribute("boneWeight").getX(2)).toBe(0.25);
+  overlay.dispose();
+});
+
 it("matches the selected bone to each mesh's local joint palette and preserves partial weights", () => {
   const { a, model } = fixture();
   const selected = inspectBoneInfluence(model, a.uuid)!;

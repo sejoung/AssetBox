@@ -11,6 +11,7 @@ import {
   useImperativeHandle,
   forwardRef,
   useCallback,
+  useMemo,
 } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Center } from "@react-three/drei";
@@ -35,6 +36,9 @@ import { IssueHighlight } from "./IssueHighlight";
 import { PreviewLighting } from "./PreviewLighting";
 import { focusIssueBounds } from "../lib/focusIssueBounds";
 import { CameraClipping } from "./CameraClipping";
+import { AnimationPlayback } from "../lib/animationPlayback";
+import { AnimationControls } from "./AnimationControls";
+import { AnimationDriver } from "./AnimationDriver";
 
 // ── Normals visualization ──
 
@@ -598,6 +602,14 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const gridRef = useRef<THREE.Object3D | null>(null);
   const screenshotRef = useRef<(() => string | null) | null>(null);
   const focusModelRef = useRef<(() => void) | null>(null);
+  const player = useMemo(() => (model ? new AnimationPlayback(model) : null), [model]);
+  const animationEnabled = !loading && !selectedIssue && activeViewMode === "default";
+
+  useLayoutEffect(() => () => player?.dispose(), [player]);
+  useLayoutEffect(() => {
+    // Inspection overlays describe the loaded pose. Restore it before their effects run.
+    if (!animationEnabled) player?.reset();
+  }, [player, animationEnabled]);
 
   useEffect(() => {
     if (!selectedIssue && !selectedBone) return;
@@ -776,6 +788,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           <directionalLight position={[-3, 2, -3]} intensity={0.3} />
 
           <PreviewLighting />
+          {player && <AnimationDriver player={player} enabled={animationEnabled} />}
           {model && (
             <ModelDisplay
               model={model}
@@ -1021,6 +1034,20 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           </div>
         )}
       </div>
+      {player && (
+        <AnimationControls
+          player={player}
+          disabledReason={
+            loading
+              ? "Loading model…"
+              : selectedIssue
+                ? "Clear inspection focus to preview animation."
+                : activeViewMode !== "default"
+                  ? "Switch to Solid to preview animation."
+                  : undefined
+          }
+        />
+      )}
       <ViewerToolbar
         viewMode={selectedIssue ? "default" : viewMode}
         bgMode={bgMode}

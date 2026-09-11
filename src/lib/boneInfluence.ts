@@ -135,6 +135,15 @@ export function createBoneInfluenceOverlay(selection: BoneSelection) {
       surfaces.forEach(({ source, surface }) => {
         source.updateWorldMatrix(true, false);
         surface.matrix.copy(source.matrixWorld);
+        if (selection.model.animations.length) {
+          source.skeleton.update();
+          const positions = surface.geometry.getAttribute("position");
+          for (let vertex = 0; vertex < positions.count; vertex++) {
+            source.getVertexPosition(vertex, position);
+            positions.setXYZ(vertex, position.x, position.y, position.z);
+          }
+          positions.needsUpdate = true;
+        }
       });
     },
     dispose() {

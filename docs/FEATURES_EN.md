@@ -311,6 +311,6 @@ The default window is 1280 × 800px; the minimum is 900 × 600px. At window widt
 
 ## Rigging information
 
-Inspect FBX, GLB and glTF bone hierarchies, search names, view skin bindings and maximum influences, and list animation names, durations and track counts. `Show bones` overlays shaded octahedral bones and joint spheres on the model. Rigging information does not affect validation grades. Animation playback and IK/control-rig inspection are not supported.
+Inspect FBX, GLB and glTF bone hierarchies, search names, view skin bindings and maximum influences, and list animation names, durations and track counts. `Show bones` overlays shaded octahedral bones and joint spheres on the model. Rigging information does not affect validation grades. Embedded animation clips can be previewed in Solid view with clip selection, play/pause, seeking, speed and loop controls. Bones, weight overlays and camera clipping follow the animated pose. Reset pose and diagnostic views restore the loaded pose. IK/control-rig inspection and per-frame validation are not supported.
 
 Selecting a bone in the hierarchy or viewport shows direct skin weights and per-mesh influenced vertex counts. Occluded bones are faint, and toggling the overlay preserves the camera.

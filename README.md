@@ -60,7 +60,7 @@
 - FBX·GLB·glTF의 본 이름·계층 검색, 스킨 연결·정점당 최대 본 영향 수 확인
 - **Show bones** — 모델의 가림을 구분하는 팔면체 본과 관절 표시
 - 본 선택 시 실제 스킨 가중치 영역·메시별 영향 정점 수 확인, 카메라 시점 유지
-- 애니메이션 클립 이름·길이·트랙 수 확인 (재생은 미지원)
+- 애니메이션 클립 이름·길이·트랙 수 확인, 클립 선택·재생·타임라인·속도·반복 미리보기
 - 내보낸 본·스킨 기준이며 Blender의 IK·컨트롤 리그는 검사하지 않음
 
 ### Texture Auto-Matching
@@ -263,7 +263,7 @@ For UI changes, follow the [design guide](docs/DESIGN_GUIDE.md) and update it wh
 
 ## Roadmap
 
-- [ ] Animation preview
+- [x] Animation preview
 - [ ] Batch processing (folder-level validation)
 - [ ] Customizable validation thresholds
 - [ ] A/B model comparison (LOD diff)

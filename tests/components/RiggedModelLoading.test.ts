@@ -21,5 +21,7 @@ it("preserves actual glTF skin and animation metadata through the loader", async
     unweightedVertices: 0,
   });
   expect(loaded.rigging.clips).toMatchObject([{ name: "Idle", duration: 1.5, trackCount: 1 }]);
+  expect(loaded.scene.animations).toHaveLength(1);
+  expect(loaded.scene.animations[0].tracks[0].times.length).toBe(2);
   disposeScene(loaded.scene);
 });

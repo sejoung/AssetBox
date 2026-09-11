@@ -360,6 +360,8 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
     const onLoad = (loaded: THREE.Group, clips = loaded.animations) => {
       object = loaded;
       animations = clips;
+      // glTF exposes clips beside the scene; retain the actual tracks for playback.
+      loaded.animations = clips;
     };
 
     switch (ext) {

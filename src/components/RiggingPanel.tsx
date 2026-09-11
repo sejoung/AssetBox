@@ -236,7 +236,9 @@ export function RiggingPanel({
             <p className="stat-hint">No animation clips found.</p>
           )}
           {clips.length > 0 && (
-            <p className="stat-hint">Clip metadata only; playback is not available.</p>
+            <p className="stat-hint">
+              Preview playable clips with the animation controls below the model in Solid view.
+            </p>
           )}
         </details>
         {(bones.length > 0 || skins.length > 0) && (

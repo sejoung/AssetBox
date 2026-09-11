@@ -15,8 +15,7 @@ export function CameraClipping({
   const bounds = useMemo(() => ({ local: new THREE.Box3(), world: new THREE.Box3() }), []);
 
   useLayoutEffect(() => {
-    // The loaded pose is static. Measure it once, after Center places the model,
-    // instead of traversing all meshes on every camera movement.
+    // Cache static models after Center places them. Animated poses are measured below.
     model.updateWorldMatrix(true, true);
     bounds.local.setFromObject(model);
     if (bonesVisible || bounds.local.isEmpty()) {
@@ -33,7 +32,16 @@ export function CameraClipping({
   useFrame(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     model.updateWorldMatrix(true, false);
-    bounds.world.copy(bounds.local).applyMatrix4(model.matrixWorld);
+    if (model.animations.length) {
+      bounds.world.setFromObject(model);
+      if (bonesVisible || bounds.world.isEmpty()) {
+        const position = new THREE.Vector3();
+        for (const bone of collectRigBones(model))
+          bounds.world.expandByPoint(bone.getWorldPosition(position));
+      }
+    } else {
+      bounds.world.copy(bounds.local).applyMatrix4(model.matrixWorld);
+    }
     updateCameraClipping(camera, bounds.world);
   });
 
