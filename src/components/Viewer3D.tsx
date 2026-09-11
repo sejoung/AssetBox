@@ -2,13 +2,13 @@ import {
   useRef,
   useEffect,
   useState,
-  Suspense,
+  useLayoutEffect,
   useImperativeHandle,
   forwardRef,
   useCallback,
 } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
+import { OrbitControls, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { analyzeNormalConsistency } from "../lib/geometryDiagnostics";
 import { loadModel, type LoadedModel } from "./ModelLoader";
@@ -27,6 +27,8 @@ import {
 
 import type { IssueSelection } from "../lib/issueInspection";
 import { IssueHighlight } from "./IssueHighlight";
+import { PreviewLighting } from "./PreviewLighting";
+import { focusIssueBounds } from "../lib/focusIssueBounds";
 
 // ── Normals visualization ──
 
@@ -524,50 +526,32 @@ function ModelDisplay({
   focusTarget,
   focusModelRef,
 }: ModelDisplayProps) {
-  const { camera, controls } = useThree();
-  const wrapperRef = useRef<THREE.Group>(null);
+  const { camera, controls, invalidate } = useThree();
 
   const focusOnModel = useCallback(() => {
-    if (!wrapperRef.current) return;
-
-    // Use the wrapper ref which includes Center's transform
-    const box = new THREE.Box3().setFromObject(wrapperRef.current);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const distance = maxDim * 2.5;
-
-    camera.position.set(
-      center.x + distance * 0.5,
-      center.y + distance * 0.4,
-      center.z + distance * 0.8
+    // Center updates an ancestor transform. Flush that transform before measuring
+    // the model so the first camera placement uses the displayed coordinates.
+    model.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(model);
+    focusIssueBounds(
+      camera as THREE.PerspectiveCamera,
+      controls as Parameters<typeof focusIssueBounds>[1],
+      box,
+      box
     );
-    camera.lookAt(center);
-
-    const perspCamera = camera as THREE.PerspectiveCamera;
-    perspCamera.near = Math.max(0.01, maxDim * 0.001);
-    perspCamera.far = maxDim * 100;
-    perspCamera.updateProjectionMatrix();
-
     if (controls) {
-      const orbitControls = controls as THREE.EventDispatcher & {
-        target: THREE.Vector3;
-        minDistance: number;
-        maxDistance: number;
-        zoomSpeed: number;
-        update: () => void;
-      };
-      orbitControls.target.copy(center);
-      orbitControls.minDistance = maxDim * 0.05;
-      orbitControls.maxDistance = maxDim * 20;
-      orbitControls.zoomSpeed = Math.max(1.5, Math.min(5, maxDim * 0.3));
-      orbitControls.update();
+      const size = box.getSize(new THREE.Vector3());
+      (controls as THREE.EventDispatcher & { zoomSpeed: number }).zoomSpeed = Math.max(
+        1.5,
+        Math.min(5, Math.max(size.x, size.y, size.z) * 0.3)
+      );
     }
-  }, [camera, controls]);
+    invalidate();
+  }, [model, camera, controls, invalidate]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     focusOnModel();
-  }, [model, focusOnModel]);
+  }, [focusOnModel]);
 
   useEffect(() => {
     if (focusModelRef) {
@@ -576,7 +560,7 @@ function ModelDisplay({
   }, [focusModelRef, focusOnModel]);
 
   return (
-    <group ref={wrapperRef}>
+    <group>
       <Center cacheKey={model}>
         <primitive object={model} />
         {viewMode === "wireframe" && <WireframeMode model={model} />}
@@ -906,19 +890,17 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           <directionalLight position={[5, 5, 5]} intensity={1} castShadow />
           <directionalLight position={[-3, 2, -3]} intensity={0.3} />
 
-          <Suspense fallback={null}>
-            {model && (
-              <ModelDisplay
-                model={model}
-                viewMode={displayViewMode}
-                onFlippedInfo={setFlippedInfo}
-                focusTarget={selectedIssue ? null : focusTarget}
-                focusModelRef={focusModelRef}
-              />
-            )}
-            {selectedIssue && <IssueHighlight selection={selectedIssue} />}
-            <Environment preset="studio" background={false} />
-          </Suspense>
+          <PreviewLighting />
+          {model && (
+            <ModelDisplay
+              model={model}
+              viewMode={displayViewMode}
+              onFlippedInfo={setFlippedInfo}
+              focusTarget={selectedIssue ? null : focusTarget}
+              focusModelRef={focusModelRef}
+            />
+          )}
+          {selectedIssue && <IssueHighlight selection={selectedIssue} />}
 
           {showGrid && !selectedIssue && <SceneGrid gridRef={gridRef} bgMode={bgMode} />}
           <ScreenshotHelper screenshotRef={screenshotRef} gridRef={gridRef} />

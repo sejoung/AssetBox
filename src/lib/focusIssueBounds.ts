@@ -42,4 +42,6 @@ export function focusIssueBounds(
     controls.maxDistance = Math.max(distance * 20, modelSize * 20);
     controls.update();
   }
+  // Publish the fitted view immediately, before the first paint or pointer event.
+  camera.updateMatrixWorld(true);
 }

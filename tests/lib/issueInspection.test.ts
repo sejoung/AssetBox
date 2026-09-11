@@ -165,7 +165,7 @@ it.each([1e-6, 1, 1e6])("fits a selected region into a narrow viewport at scale 
     update: vi.fn(),
   });
   focusIssueBounds(camera, controls, bounds, bounds);
-  camera.updateMatrixWorld(true);
+  // The fitted view must be ready before a renderer frame or pointer event.
   for (const x of [-scale, scale])
     for (const y of [-scale, scale])
       for (const z of [-scale, scale]) {

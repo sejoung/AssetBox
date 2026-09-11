@@ -89,7 +89,7 @@ Two drag-and-drop systems operate simultaneously:
 ### 4.1 Solid (Default)
 - Standard material rendering
 - Displays embedded textures if present
-- Environment lighting (Studio preset)
+- Locally generated studio environment lighting. The first preview does not wait for an external HDR download.
 
 ### 4.2 Wireframe
 - Displays mesh edge structure

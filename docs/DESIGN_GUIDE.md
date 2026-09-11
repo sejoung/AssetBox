@@ -74,6 +74,7 @@ AssetBox 데스크톱 앱의 화면을 추가하거나 수정할 때 사용하�
 - Three.js의 노멀·UV·밀도 시각화 색은 진단 의미를 전달하는 색입니다. UI 강조색 변경만을 이유로 함께 바꾸지 않습니다.
 - [overlayStyle.ts](../src/lib/overlayStyle.ts)의 `BG_COLORS`는 캔버스 배경용입니다. `dark`, `neutral`, `light` 전환은 앱 전체 테마를 바꾸지 않습니다.
 - 바닥 그리드는 기본으로 숨기고 `Grid` 버튼으로 켭니다. 검사 위치 강조 중에는 자동으로 숨기며, 강조를 해제하면 이전 설정을 복원합니다. 그리드의 중립색은 같은 파일의 `GRID_COLORS`에서 배경별로 정의합니다. UV 검사 무늬와는 별개이며 썸네일에는 포함하지 않습니다.
+- 첫 모델 표시는 외부 조명 다운로드에 의존하지 않습니다. [PreviewLighting](../src/components/PreviewLighting.tsx)의 로컬 스튜디오 조명을 사용하고, 모델 배치 직후 카메라 변환과 화면을 갱신합니다. 파일을 선택한 뒤 캔버스를 클릭하거나 드래그하지 않아도 보여야 합니다.
 
 오버레이를 추가할 때는 `OVERLAY_BG`, `OVERLAY_BORDER`, `OVERLAY_BACKDROP`을 재사용합니다. 현재 blur는 20px이며, 가독성은 충분한 배경 불투명도와 함께 확보합니다.
 
