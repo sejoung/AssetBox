@@ -24,6 +24,13 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AssetInfo, ValidationResult, ValidationSeverity } from "./types/asset";
 import type { LoadedModel } from "./components/ModelLoader";
 import * as log from "./lib/logger";
+import {
+  captureInspectionSource,
+  inspectIssue,
+  type InspectionSource,
+  type IssueSelection,
+} from "./lib/issueInspection";
+import type { ValidationItem } from "./types/asset";
 
 /** Warms the next model during idle time, falling back where rIC is missing. */
 function scheduleIdle(task: () => void): () => void {
@@ -48,6 +55,15 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [severityByPath, setSeverityByPath] = useState<Record<string, ValidationSeverity>>({});
   const viewerRef = useRef<Viewer3DHandle>(null);
+  const inspectionSource = useRef<InspectionSource | null>(null);
+  const [issueSelection, setIssueSelection] = useState<IssueSelection | null>(null);
+  const clearIssue = useCallback(() => setIssueSelection(null), []);
+  const selectIssue = useCallback((item: ValidationItem) => {
+    if (inspectionSource.current) setIssueSelection(inspectIssue(inspectionSource.current, item));
+  }, []);
+  const selectIssueTarget = useCallback((targetIndex: number) => {
+    setIssueSelection((current) => (current ? { ...current, targetIndex } : null));
+  }, []);
   const currentFileRef = useRef(filePath);
   currentFileRef.current = filePath;
 
@@ -71,6 +87,8 @@ function App() {
     epochRef.current++;
     setAsset(null);
     setValidation(null);
+    inspectionSource.current = null;
+    setIssueSelection(null);
     setError(null);
     setFilePath(path);
   }, []);
@@ -202,10 +220,15 @@ function App() {
       const path = filePath;
       if (!path) return;
       const epoch = epochRef.current;
-
       try {
+        const source = captureInspectionSource(
+          model.scene,
+          model.textureInspection.failedResources
+        );
         const { info, validation: result } = await inspectModel(path, model);
         if (epoch !== epochRef.current) return; // superseded by a newer selection
+        inspectionSource.current = source;
+        setIssueSelection(null);
         setAsset(info);
         setValidation(result);
         recordSeverity(path, result.overall);
@@ -222,6 +245,8 @@ function App() {
     setError(err.message);
     setAsset(null);
     setValidation(null);
+    inspectionSource.current = null;
+    setIssueSelection(null);
   }, []);
 
   // File-manager style keyboard navigation over the tree.
@@ -335,9 +360,11 @@ function App() {
           filePath={filePath}
           onModelLoaded={handleModelLoaded}
           onError={handleError}
+          issueSelection={issueSelection}
+          onClearIssue={clearIssue}
         />
       ) : null,
-    [filePath, handleModelLoaded, handleError, loadAttempt]
+    [filePath, handleModelLoaded, handleError, loadAttempt, issueSelection, clearIssue]
   );
 
   return (
@@ -438,6 +465,10 @@ function App() {
           validation={validation}
           viewerRef={viewerRef}
           assetPath={filePath}
+          issueSelection={issueSelection}
+          onInspectIssue={selectIssue}
+          onSelectIssueTarget={selectIssueTarget}
+          onClearIssue={clearIssue}
         />
       </main>
     </div>

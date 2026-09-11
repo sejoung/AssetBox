@@ -6,6 +6,7 @@ import type {
   ValidationSeverity,
   ValidationCategory,
   ValidationGroup,
+  InspectionKind,
 } from "../types/asset";
 import type { MeshDiagnostics } from "../components/ModelLoader";
 import { worstSeverity } from "../lib/validationStatus";
@@ -46,9 +47,17 @@ export function validateAsset(input: ValidationInput): ValidationResult {
     label: string,
     value: string,
     severity: ValidationSeverity,
-    threshold?: string
+    threshold?: string,
+    inspection?: InspectionKind
   ) => {
-    items.push({ category, label, value, severity, threshold });
+    items.push({
+      category,
+      label,
+      value,
+      severity,
+      threshold,
+      ...(inspection ? { inspection } : {}),
+    });
   };
   // These are reference budgets, not proof that an asset is defective.
   add(
@@ -90,7 +99,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "Degenerate Tris",
       formatNumber(d.degenerateTriCount),
       ratio > 0.05 ? "bad" : "warning",
-      "Zero-area or numerically collapsed triangles. Inspect and remove unintended degenerate faces; > 5% needs attention."
+      "Zero-area or numerically collapsed triangles. Inspect and remove unintended degenerate faces; > 5% needs attention.",
+      "degenerate"
     );
   }
   const bb = d.boundingBox;
@@ -103,14 +113,16 @@ export function validateAsset(input: ValidationInput): ValidationResult {
     "Non-manifold",
     d.nonManifoldEdgeCount ? `${d.nonManifoldEdgeCount} edges` : "None detected",
     d.nonManifoldEdgeCount ? "warning" : "good",
-    `Edges shared by 3+ faces. Inspect overlapping/internal faces if unintended. ${edgeNote}`
+    `Edges shared by 3+ faces. Inspect overlapping/internal faces if unintended. ${edgeNote}`,
+    d.nonManifoldEdgeCount > 0 ? "non-manifold" : undefined
   );
   add(
     "topology",
     "Open Edges",
     d.openEdgeCount ? String(d.openEdgeCount) : "None detected",
     d.openEdgeCount ? "warning" : "good",
-    `Boundary edges may be intentional on open surfaces. Close only unintended gaps. ${edgeNote}`
+    `Boundary edges may be intentional on open surfaces. Close only unintended gaps. ${edgeNote}`,
+    d.openEdgeCount > 0 ? "open-edges" : undefined
   );
   add(
     "topology",
@@ -121,7 +133,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
         ? "Incomplete"
         : "No mismatches",
     d.normalMismatchTriCount ? "warning" : d.uncheckedNormalTriCount > 0 ? "unknown" : "good",
-    "Compares triangle winding with vertex normals, not inside/outside. Inspect marked vertices in Normals view before recalculating normals."
+    "Compares triangle winding with vertex normals, not inside/outside. Inspect marked vertices in Normals view before recalculating normals.",
+    d.normalMismatchTriCount > 0 ? "normal-mismatch" : undefined
   );
   if (d.uncheckedNormalTriCount > 0)
     add(
@@ -129,7 +142,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "Unchecked Normals",
       `${d.uncheckedNormalTriCount} tris`,
       "unknown",
-      "Missing/invalid normals or degenerate faces prevent this check. Inspect in the source editor."
+      "Missing/invalid normals or degenerate faces prevent this check. Inspect in the source editor.",
+      "unchecked-normals"
     );
 
   if (d.meshesMissingRequiredUV > 0)
@@ -138,7 +152,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "Missing Required UVs",
       `${d.meshesMissingRequiredUV} meshes`,
       "bad",
-      "A loaded material texture references a UV channel absent from its mesh. Add/export that channel or correct the material binding."
+      "A loaded material texture references a UV channel absent from its mesh. Add/export that channel or correct the material binding.",
+      "required-uv"
     );
   if (d.meshesWithoutUV > 0)
     add(
@@ -146,7 +161,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "No UVs",
       `${d.meshesWithoutUV} / ${input.meshCount} meshes`,
       "warning",
-      "UVs are needed for UV-mapped textures, but may be unnecessary for constant-color or generated-coordinate materials. Unwrap only when needed."
+      "UVs are needed for UV-mapped textures, but may be unnecessary for constant-color or generated-coordinate materials. Unwrap only when needed.",
+      "missing-uv"
     );
   else add("uv", "UV Coverage", "All meshes", "good");
   const maxChannels = d.uvChannelCounts.length ? Math.max(...d.uvChannelCounts) : 0;
@@ -163,7 +179,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
     "Bound Textures",
     input.textureReferencesVerified ? String(input.textureCount) : "Unknown",
     input.textureReferencesVerified ? "good" : "unknown",
-    "Counts unique textures bound to the loaded scene. OBJ material-library references are not resolved by this loader."
+    "Counts unique textures bound to the loaded scene. OBJ material-library references are not resolved by this loader.",
+    input.textureCount > 0 ? "textures" : undefined
   );
   if (input.failedResourceCount > 0)
     add(
@@ -171,7 +188,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "Failed Resources",
       String(input.failedResourceCount),
       "bad",
-      "The loader reported failed resource requests. Check the listed paths, access permissions and source material references, then reload."
+      "The loader reported failed resource requests. Check the listed paths, access permissions and source material references, then reload.",
+      "failed-resources"
     );
   const resolutionComplete =
     input.textureReferencesVerified &&
@@ -183,7 +201,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "Max Resolution",
       `${input.maxTextureRes}px${resolutionComplete ? "" : " (partial)"}`,
       input.maxTextureRes > 4096 ? "warning" : resolutionComplete ? "good" : "unknown",
-      "Measured from loaded texture dimensions. Reference budget: ≤ 4096px; review detail and memory needs before resizing."
+      "Measured from loaded texture dimensions. Reference budget: ≤ 4096px; review detail and memory needs before resizing.",
+      "texture-resolution"
     );
     if (!resolutionComplete)
       add(
@@ -219,7 +238,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
       "No Material",
       `${d.meshesWithoutMaterial} meshes`,
       "warning",
-      "Review whether a material is required for the intended appearance, then assign/export it if needed."
+      "Review whether a material is required for the intended appearance, then assign/export it if needed.",
+      "no-material"
     );
   if (!input.textureReferencesVerified)
     add(
@@ -234,7 +254,8 @@ export function validateAsset(input: ValidationInput): ValidationResult {
     d.nonUniformScaleCount > 0 ? "Non-uniform Scale" : "Scale",
     d.nonUniformScaleCount > 0 ? `${d.nonUniformScaleCount} objects` : "Uniform",
     d.nonUniformScaleCount > 0 ? "warning" : "good",
-    "Non-uniform scale can be intentional. Check the target pipeline before applying transforms, especially on rigged models."
+    "Non-uniform scale can be intentional. Check the target pipeline before applying transforms, especially on rigged models.",
+    d.nonUniformScaleCount > 0 ? "non-uniform-scale" : undefined
   );
   add(
     "transform",

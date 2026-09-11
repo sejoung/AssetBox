@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import App from "../../src/App";
+import * as THREE from "three";
 import { useFileTree, type FileTree } from "../../src/hooks/useFileTree";
 import { inspectModel } from "../../src/lib/assetPipeline";
 import { createTree, flattenTree, setChildren } from "../../src/lib/fileTree";
@@ -30,7 +31,12 @@ vi.mock("../../src/components/Viewer3D", () => ({
     filePath: string;
     onModelLoaded: (model: unknown) => void;
   }) => (
-    <button data-testid="preview-model" onClick={() => onModelLoaded({})}>
+    <button
+      data-testid="preview-model"
+      onClick={() =>
+        onModelLoaded({ scene: new THREE.Group(), textureInspection: { failedResources: [] } })
+      }
+    >
       {filePath}
     </button>
   ),
@@ -134,4 +140,34 @@ describe("Workspace selection", () => {
     fireEvent.keyDown(screen.getByRole("tree"), { key: "ArrowDown" });
     expect(screen.getByTestId("preview-model")).toHaveTextContent("/models/second.obj");
   });
+});
+
+it("clears active issue details when another file is selected", async () => {
+  const item = {
+    label: "Open Edges",
+    value: "4",
+    severity: "warning" as const,
+    category: "topology" as const,
+    inspection: "open-edges" as const,
+  };
+  vi.mocked(inspectModel).mockResolvedValue({
+    info: asset,
+    validation: {
+      overall: "warning",
+      items: [item],
+      groups: [{ category: "topology", label: "Topology", items: [item] }],
+    },
+  });
+  render(<App />);
+  fireEvent.click(screen.getByText("first.obj"));
+  fireEvent.click(screen.getByTestId("preview-model"));
+  fireEvent.click(await screen.findByRole("button", { name: "Inspect Open Edges" }));
+  expect(screen.getByRole("region", { name: "Open Edges details" })).toBeInTheDocument();
+  fireEvent.click(screen.getByText("second.obj"));
+  expect(screen.queryByRole("region", { name: "Open Edges details" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByTestId("preview-model"));
+  expect(await screen.findByRole("button", { name: "Inspect Open Edges" })).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
 });

@@ -53,7 +53,22 @@ export type ValidationCategory =
   | "material"
   | "transform";
 
+export type InspectionKind =
+  | "degenerate"
+  | "open-edges"
+  | "non-manifold"
+  | "normal-mismatch"
+  | "unchecked-normals"
+  | "missing-uv"
+  | "required-uv"
+  | "no-material"
+  | "non-uniform-scale"
+  | "textures"
+  | "texture-resolution"
+  | "failed-resources";
+
 export interface ValidationItem {
+  inspection?: InspectionKind;
   label: string;
   value: string;
   severity: ValidationSeverity;

@@ -135,3 +135,76 @@ it("keeps incomplete checks separate from confirmed issue counts", () => {
   expect(screen.getByText("Size unknown")).toBeInTheDocument();
   expect(screen.getByText("Dimensions could not be measured.")).toBeInTheDocument();
 });
+
+it("offers navigation only for checks with evidence and displays the selected object's details", async () => {
+  const THREE = await import("three");
+  const { captureInspectionSource, inspectIssue } = await import("../../src/lib/issueInspection");
+  const group = new THREE.Group();
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry());
+  plane.name = "Panel";
+  group.add(plane, plane.clone());
+  const item = {
+    label: "Open Edges",
+    value: "8",
+    severity: "warning" as const,
+    category: "topology" as const,
+    inspection: "open-edges" as const,
+  };
+  const selection = inspectIssue(captureInspectionSource(group), item);
+  const onInspectIssue = vi.fn(),
+    onSelectIssueTarget = vi.fn(),
+    onClearIssue = vi.fn();
+  render(
+    <InfoPanel
+      asset={mockAssetInfo}
+      validation={{
+        overall: "warning",
+        items: [item],
+        groups: [{ category: "topology", label: "Topology", items: [item] }],
+      }}
+      {...defaultProps}
+      issueSelection={selection}
+      onInspectIssue={onInspectIssue}
+      onSelectIssueTarget={onSelectIssueTarget}
+      onClearIssue={onClearIssue}
+    />
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Inspect Open Edges" }));
+  expect(onInspectIssue).toHaveBeenCalledWith(item);
+  expect(screen.getByRole("button", { name: "Inspect Open Edges" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  expect(screen.getByText("4 edges marked")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Previous affected object" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Next affected object" }));
+  expect(onSelectIssueTarget).toHaveBeenCalledWith(1);
+  fireEvent.change(screen.getByRole("combobox", { name: "Affected object" }), {
+    target: { value: "1" },
+  });
+  expect(onSelectIssueTarget).toHaveBeenLastCalledWith(1);
+  fireEvent.click(screen.getByRole("button", { name: "Close details" }));
+  expect(onClearIssue).toHaveBeenCalled();
+});
+
+it("does not offer model navigation for unknown measurements without locations", () => {
+  const item = {
+    label: "Max Resolution",
+    value: "Unknown",
+    severity: "unknown" as const,
+    category: "texture" as const,
+  };
+  render(
+    <InfoPanel
+      asset={mockAssetInfo}
+      validation={{
+        overall: "unknown",
+        items: [item],
+        groups: [{ category: "texture", label: "Texture", items: [item] }],
+      }}
+      {...defaultProps}
+      onInspectIssue={vi.fn()}
+    />
+  );
+  expect(screen.queryByRole("button", { name: "Inspect Max Resolution" })).not.toBeInTheDocument();
+});

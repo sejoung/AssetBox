@@ -24,6 +24,9 @@ import {
   type BgMode,
 } from "../lib/overlayStyle";
 
+import type { IssueSelection } from "../lib/issueInspection";
+import { IssueHighlight } from "./IssueHighlight";
+
 // ── Normals visualization ──
 
 interface FlippedNormalInfo {
@@ -573,7 +576,7 @@ function ModelDisplay({
 
   return (
     <group ref={wrapperRef}>
-      <Center>
+      <Center cacheKey={model}>
         <primitive object={model} />
         {viewMode === "wireframe" && <WireframeMode model={model} />}
         {viewMode === "normals" && <NormalsHelper model={model} onFlippedInfo={onFlippedInfo} />}
@@ -693,10 +696,12 @@ interface Viewer3DProps {
   filePath: string | null;
   onModelLoaded?: (model: LoadedModel) => void;
   onError?: (error: Error) => void;
+  issueSelection?: IssueSelection | null;
+  onClearIssue?: () => void;
 }
 
 export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewer3D(
-  { filePath, onModelLoaded, onError },
+  { filePath, onModelLoaded, onError, issueSelection, onClearIssue },
   ref
 ) {
   const [model, setModel] = useState<THREE.Group | null>(null);
@@ -708,9 +713,20 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const [flippedInfo, setFlippedInfo] = useState<FlippedNormalInfo | null>(null);
   const [retopoInfo, setRetopoInfo] = useState<RetopoDiagInfo | null>(null);
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
+  const selectedIssue = issueSelection?.source.model === model ? issueSelection : null;
+  const displayViewMode = selectedIssue ? "default" : activeViewMode;
   const gridRef = useRef<THREE.Object3D | null>(null);
   const screenshotRef = useRef<(() => string | null) | null>(null);
   const focusModelRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!selectedIssue) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) onClearIssue?.();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedIssue, onClearIssue]);
 
   const handleFocusModel = useCallback(() => {
     focusModelRef.current?.();
@@ -725,6 +741,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   // Deferred view mode switch — show spinner, wait for paint, then switch
   const handleViewMode = useCallback(
     (mode: ViewMode) => {
+      onClearIssue?.();
       if (mode === activeViewMode) return;
       setViewMode(mode);
 
@@ -753,7 +770,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         });
       });
     },
-    [activeViewMode]
+    [activeViewMode, onClearIssue]
   );
 
   useEffect(() => {
@@ -814,6 +831,20 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
 
   return (
     <div className="viewer-scene" style={{ backgroundColor: BG_COLORS[bgMode] }}>
+      {selectedIssue && (
+        <div className="issue-preview-bar" role="status">
+          <span>
+            <strong>{selectedIssue.item.label}</strong>
+            <br />
+            {selectedIssue.targets.length
+              ? "Amber marks show the selected region through surfaces."
+              : "Resource details are shown in the inspector."}
+          </span>
+          <button className="ui-button" onClick={onClearIssue}>
+            Clear focus
+          </button>
+        </div>
+      )}
       <div className="canvas-stage">
         {loading && (
           <div role="status" className="loading-overlay">
@@ -867,12 +898,13 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
             {model && (
               <ModelDisplay
                 model={model}
-                viewMode={activeViewMode}
+                viewMode={displayViewMode}
                 onFlippedInfo={setFlippedInfo}
-                focusTarget={focusTarget}
+                focusTarget={selectedIssue ? null : focusTarget}
                 focusModelRef={focusModelRef}
               />
             )}
+            {selectedIssue && <IssueHighlight selection={selectedIssue} />}
             <Environment preset="studio" background={false} />
           </Suspense>
 
@@ -882,7 +914,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
         </Canvas>
 
-        {activeViewMode === "normals" && flippedInfo && (
+        {displayViewMode === "normals" && flippedInfo && (
           <button
             onClick={() => setFocusTarget(flippedInfo.center.clone())}
             style={{
@@ -922,7 +954,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           </button>
         )}
 
-        {activeViewMode === "retopo" && retopoInfo && (
+        {displayViewMode === "retopo" && retopoInfo && (
           <div
             className="topology-panel"
             style={{
@@ -1102,7 +1134,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         )}
       </div>
       <ViewerToolbar
-        viewMode={viewMode}
+        viewMode={selectedIssue ? "default" : viewMode}
         bgMode={bgMode}
         onViewModeChange={handleViewMode}
         onBgModeChange={setBgMode}

@@ -1,3 +1,5 @@
+import { IssueDetails } from "./IssueDetails";
+import type { IssueSelection } from "../lib/issueInspection";
 import { VALIDATION_STATUS } from "../lib/validationStatus";
 import { memo, useState } from "react";
 import type { AssetInfo, ValidationResult, ValidationItem, ValidationGroup } from "../types/asset";
@@ -8,33 +10,75 @@ import { ReportButton } from "./ReportButton";
 import { LogButton } from "./LogButton";
 import { formatFileSize } from "../lib/fileTree";
 
-interface InfoPanelProps {
+interface IssueProps {
+  issueSelection?: IssueSelection | null;
+  onInspectIssue?: (item: ValidationItem) => void;
+  onSelectIssueTarget?: (index: number) => void;
+  onClearIssue?: () => void;
+}
+
+interface InfoPanelProps extends IssueProps {
   asset: AssetInfo | null;
   validation: ValidationResult | null;
   viewerRef: React.RefObject<Viewer3DHandle | null>;
   assetPath: string | null;
 }
 
-const StatRow = memo(function StatRow({ item }: { item: ValidationItem }) {
+const StatRow = memo(function StatRow({
+  item,
+  issueSelection,
+  onInspectIssue,
+  onSelectIssueTarget,
+  onClearIssue,
+}: { item: ValidationItem } & IssueProps) {
+  const selected = issueSelection?.item === item;
+  const values = (
+    <div className="stat-values">
+      <span title={item.threshold}>{item.label}</span>
+      <span className={`stat-value severity-${item.severity}`}>
+        {item.severity !== "good" && (
+          <span aria-label={VALIDATION_STATUS[item.severity].label}>
+            {VALIDATION_STATUS[item.severity].symbol}
+          </span>
+        )}
+        {item.value}
+      </span>
+    </div>
+  );
   return (
-    <div className="stat-row">
-      <div className="stat-values">
-        <span title={item.threshold}>{item.label}</span>
-        <span className={`stat-value severity-${item.severity}`}>
-          {item.severity !== "good" && (
-            <span aria-label={VALIDATION_STATUS[item.severity].label}>
-              {VALIDATION_STATUS[item.severity].symbol}
-            </span>
-          )}
-          {item.value}
-        </span>
-      </div>
+    <div className={`stat-row ${selected ? "stat-row-selected" : ""}`}>
+      {item.inspection && onInspectIssue ? (
+        <button
+          className="stat-action"
+          aria-label={`Inspect ${item.label}`}
+          aria-pressed={selected}
+          onClick={() => onInspectIssue(item)}
+        >
+          {values}
+          <span className="stat-action-hint">
+            {item.inspection === "failed-resources" ? "Show resource details" : "Locate in model"}{" "}
+            <span aria-hidden="true">↗</span>
+          </span>
+        </button>
+      ) : (
+        values
+      )}
       {item.severity !== "good" && item.threshold && <p className="stat-hint">{item.threshold}</p>}
+      {selected && onSelectIssueTarget && onClearIssue && (
+        <IssueDetails
+          selection={issueSelection}
+          onSelectTarget={onSelectIssueTarget}
+          onClear={onClearIssue}
+        />
+      )}
     </div>
   );
 });
 
-const CategoryGroup = memo(function CategoryGroup({ group }: { group: ValidationGroup }) {
+const CategoryGroup = memo(function CategoryGroup({
+  group,
+  ...issueProps
+}: { group: ValidationGroup } & IssueProps) {
   const issueCount = group.items.filter(
     (item) => item.severity === "warning" || item.severity === "bad"
   ).length;
@@ -52,14 +96,20 @@ const CategoryGroup = memo(function CategoryGroup({ group }: { group: Validation
       </div>
       <div className="info-group-content">
         {group.items.map((item) => (
-          <StatRow key={item.label} item={item} />
+          <StatRow key={item.label} item={item} {...issueProps} />
         ))}
       </div>
     </section>
   );
 });
 
-export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanelProps) {
+export function InfoPanel({
+  asset,
+  validation,
+  viewerRef,
+  assetPath,
+  ...issueProps
+}: InfoPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   if (!asset) return null;
 
@@ -101,7 +151,7 @@ export function InfoPanel({ asset, validation, viewerRef, assetPath }: InfoPanel
               </p>
             )}
             {validation?.groups.map((group) => (
-              <CategoryGroup key={group.category} group={group} />
+              <CategoryGroup key={group.category} group={group} {...issueProps} />
             ))}
             {(asset.textures.length > 0 || asset.missingTextures.length > 0) && (
               <section className="info-group">

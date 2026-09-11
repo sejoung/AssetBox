@@ -161,6 +161,14 @@ Loaded models are inspected across Geometry, Topology, UV, Texture, Material, an
 
 Interactive and batch validation share the same pipeline. Overall priority is Needs attention → Review → Incomplete → Checked. Incomplete checks remain visible in the details and report even when another flag takes priority.
 
+### Locate inspection findings
+
+- Click `Locate in model` to focus the camera and mark affected edges, triangles, or meshes in amber.
+- Navigate affected objects in the details panel and inspect their names, counts, materials, and texture bindings.
+- `Show resource details` lists actual failed paths without guessing ownership.
+- `Clear focus`, `Close details`, or `Escape` removes the highlight. Changing files clears the selection; no review history is saved.
+- Instance bounds, loaded-pose mapping, and the 20,000-primitive overlay limit are described in the [validation guide (Korean)](VALIDATION_GUIDE.md).
+
 ---
 
 ## 7. Automatic Texture Detection

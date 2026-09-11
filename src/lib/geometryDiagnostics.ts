@@ -41,7 +41,10 @@ export function isDegenerateTriangle(a: THREE.Vector3, b: THREE.Vector3, c: THRE
   );
 }
 
-export function countDegenerateTriangles(geometry: THREE.BufferGeometry) {
+export function countDegenerateTriangles(
+  geometry: THREE.BufferGeometry,
+  onTriangle?: (index: number) => void
+) {
   const position = geometry.attributes.position;
   if (!position) return 0;
   const { triCount, getIndices } = getTriangleIndices(geometry);
@@ -57,8 +60,10 @@ export function countDegenerateTriangles(geometry: THREE.BufferGeometry) {
         b.fromBufferAttribute(position, ib),
         c.fromBufferAttribute(position, ic)
       )
-    )
+    ) {
       count++;
+      onTriangle?.(i);
+    }
   }
   return count;
 }
@@ -68,14 +73,21 @@ export function countDegenerateTriangles(geometry: THREE.BufferGeometry) {
  * UV/normal seams may duplicate vertices. No epsilon welding: nearby intentional
  * gaps must stay open. This detects edge incidence, not watertightness or volume.
  */
-export function analyzeEdges(geometry: THREE.BufferGeometry) {
+export function analyzeEdges(
+  geometry: THREE.BufferGeometry,
+  onEdge?: (start: number, end: number, incidence: number) => void
+) {
   const position = geometry.attributes.position;
   if (!position) return { nonManifold: 0, openEdges: 0 };
   const canonical = new Map<string, number>();
   const ids: number[] = [];
+  const representatives: number[] = [];
   for (let i = 0; i < position.count; i++) {
     const key = `${position.getX(i)},${position.getY(i)},${position.getZ(i)}`;
-    if (!canonical.has(key)) canonical.set(key, canonical.size);
+    if (!canonical.has(key)) {
+      canonical.set(key, canonical.size);
+      representatives.push(i);
+    }
     ids.push(canonical.get(key)!);
   }
   const edges = new Map<string, number>();
@@ -105,7 +117,11 @@ export function analyzeEdges(geometry: THREE.BufferGeometry) {
   }
   let nonManifold = 0,
     openEdges = 0;
-  for (const count of edges.values()) {
+  for (const [key, count] of edges) {
+    if (onEdge && count !== 2) {
+      const [a, b] = key.split("_").map(Number);
+      onEdge(representatives[a], representatives[b], count);
+    }
     if (count > 2) nonManifold++;
     if (count === 1) openEdges++;
   }
@@ -113,14 +129,20 @@ export function analyzeEdges(geometry: THREE.BufferGeometry) {
 }
 
 /** Winding versus vertex normals; deliberately does not infer inside/outside. */
-export function analyzeNormalConsistency(geometry: THREE.BufferGeometry) {
+export function analyzeNormalConsistency(
+  geometry: THREE.BufferGeometry,
+  onTriangle?: (index: number, kind: "mismatch" | "unchecked") => void
+) {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
   const { triCount, getIndices } = getTriangleIndices(geometry);
   const vertices = new Set<number>();
   let mismatches = 0,
     unchecked = 0;
-  if (!position || !normal) return { mismatches, unchecked: triCount, vertices };
+  if (!position || !normal) {
+    if (onTriangle) for (let i = 0; i < triCount; i++) onTriangle(i, "unchecked");
+    return { mismatches, unchecked: triCount, vertices };
+  }
   const a = new THREE.Vector3(),
     b = new THREE.Vector3(),
     c = new THREE.Vector3();
@@ -137,6 +159,7 @@ export function analyzeNormalConsistency(geometry: THREE.BufferGeometry) {
     c.fromBufferAttribute(position, ic);
     if (isDegenerateTriangle(a, b, c)) {
       unchecked++;
+      onTriangle?.(i, "unchecked");
       continue;
     }
     face.subVectors(b, a).normalize().cross(edge.subVectors(c, a).normalize()).normalize();
@@ -149,10 +172,12 @@ export function analyzeNormalConsistency(geometry: THREE.BufferGeometry) {
       average.lengthSq() === 0
     ) {
       unchecked++;
+      onTriangle?.(i, "unchecked");
       continue;
     }
     if (face.dot(average.normalize()) < -1e-6) {
       mismatches++;
+      onTriangle?.(i, "mismatch");
       vertices.add(ia);
       vertices.add(ib);
       vertices.add(ic);

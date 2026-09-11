@@ -24,7 +24,7 @@ export function materialTextures(material: THREE.Material): THREE.Texture[] {
   );
 }
 
-function imageResolution(image: unknown): number | null {
+export function imageResolution(image: unknown): number | null {
   if (!image || typeof image !== "object") return null;
   const data = image as {
     width?: number;
