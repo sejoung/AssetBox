@@ -1,3 +1,4 @@
+import type { BoneSelection } from "../lib/boneInfluence";
 import { RiggingPanel } from "./RiggingPanel";
 import { IssueDetails } from "./IssueDetails";
 import type { IssueSelection } from "../lib/issueInspection";
@@ -20,6 +21,9 @@ interface IssueProps {
 
 interface InfoPanelProps extends IssueProps {
   bonesVisible?: boolean;
+  boneSelection?: BoneSelection | null;
+  onSelectBone?: (id: string) => void;
+  onClearBoneSelection?: () => void;
   onBonesVisibleChange?: (visible: boolean) => void;
   asset: AssetInfo | null;
   validation: ValidationResult | null;
@@ -112,6 +116,9 @@ export function InfoPanel({
   viewerRef,
   assetPath,
   bonesVisible = false,
+  boneSelection,
+  onSelectBone,
+  onClearBoneSelection,
   onBonesVisibleChange,
   ...issueProps
 }: InfoPanelProps) {
@@ -161,6 +168,9 @@ export function InfoPanel({
                 rigging={asset.rigging}
                 format={asset.format}
                 bonesVisible={bonesVisible}
+                selection={boneSelection}
+                onSelectBone={onSelectBone}
+                onClearSelection={onClearBoneSelection}
                 onBonesVisibleChange={onBonesVisibleChange}
               />
             )}

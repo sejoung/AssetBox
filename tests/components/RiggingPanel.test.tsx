@@ -55,3 +55,11 @@ it("distinguishes unsupported OBJ from exported bone data", () => {
   expect(screen.queryByRole("button", { name: "Show bones" })).not.toBeInTheDocument();
   expect(screen.getByText("Not found")).toBeInTheDocument();
 });
+
+it("selects a named bone from the hierarchy", () => {
+  const select = vi.fn();
+  render(<RiggingPanel rigging={rig} format="glb" bonesVisible onSelectBone={select} />);
+  fireEvent.click(screen.getByText("Bone hierarchy"));
+  fireEvent.click(screen.getByRole("button", { name: "Select bone Spine" }));
+  expect(select).toHaveBeenCalledWith("2");
+});

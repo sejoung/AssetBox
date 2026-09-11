@@ -74,27 +74,111 @@ it("includes detached skin joints and allows duplicate bone names", () => {
   expect(new Set(rig.bones.map((bone) => bone.id)).size).toBe(2);
 });
 
-it("draws bone-only roots and transformed joints, releasing only its own buffers", () => {
-  const { scene, child, mesh } = fixture();
-  scene.position.set(10, 20, 30);
+it.each([0.00001, 1, 100000])(
+  "aligns octahedral heads and tails with transformed joints at scale %s",
+  (scale) => {
+    const { scene, root, child } = fixture();
+    scene.position.set(10 * scale, 20 * scale, 30 * scale);
+    scene.scale.set(scale * 2, scale, scale * 0.5);
+    scene.rotation.z = 0.4;
+    const overlay = createBoneOverlay(scene);
+    overlay.update();
+    const bodies = overlay.group.getObjectByName("Octahedral bones") as THREE.InstancedMesh;
+    const joints = overlay.group.getObjectByName("Bone joints") as THREE.InstancedMesh;
+    expect(bodies.count).toBe(1);
+    expect(joints.count).toBe(2);
+    expect(bodies.geometry.getAttribute("position").count).toBe(24); // eight triangular faces
+    const matrix = new THREE.Matrix4();
+    const checkEndpoints = () => {
+      bodies.getMatrixAt(0, matrix);
+      const head = new THREE.Vector3(0, 0, 0).applyMatrix4(matrix);
+      const tail = new THREE.Vector3(0, 1, 0).applyMatrix4(matrix);
+      expect(head.distanceTo(root.getWorldPosition(new THREE.Vector3())) / scale).toBeLessThan(
+        0.00001
+      );
+      expect(tail.distanceTo(child.getWorldPosition(new THREE.Vector3())) / scale).toBeLessThan(
+        0.00001
+      );
+    };
+    checkEndpoints();
+    child.position.y = 3;
+    overlay.update();
+    checkEndpoints();
+    // Wide shoulder near the head, tapering to a point at the tail.
+    expect(bodies.geometry.getAttribute("position").getY(1)).toBeCloseTo(0.2);
+    overlay.dispose();
+  }
+);
+
+it("keeps terminal and isolated joints without inventing tails, and skips zero-length bodies", () => {
+  const root = new THREE.Bone(),
+    child = new THREE.Bone(),
+    branch = new THREE.Bone();
+  root.add(child, branch);
+  branch.position.x = 2;
+  const scene = new THREE.Group().add(root, new THREE.Bone());
   const overlay = createBoneOverlay(scene);
   overlay.update();
-  const lines = overlay.group.children[0] as THREE.LineSegments;
-  const points = overlay.group.children[1] as THREE.Points;
-  expect(Array.from(lines.geometry.getAttribute("position").array)).toEqual([
-    10, 20, 30, 12, 21, 30,
-  ]);
-  expect(points.geometry.getAttribute("position").count).toBe(2);
-  child.position.y = 3;
+  const bodies = overlay.group.getObjectByName("Octahedral bones") as THREE.InstancedMesh;
+  const joints = overlay.group.getObjectByName("Bone joints") as THREE.InstancedMesh;
+  expect(bodies.count).toBe(1);
+  expect(joints.count).toBe(4);
+  expect(Array.from(joints.instanceMatrix.array).every(Number.isFinite)).toBe(true);
+  child.position.y = 1;
   overlay.update();
-  expect(lines.geometry.getAttribute("position").getY(1)).toBe(23);
-  const source = mesh.geometry.getAttribute("skinWeight");
+  expect(bodies.count).toBe(2);
+  branch.position.x = 0;
+  overlay.update();
+  expect(bodies.count).toBe(1);
+  overlay.dispose();
+});
+
+it("releases overlay instance buffers, geometry and materials once without disposing source skin data", () => {
+  const { scene, mesh } = fixture();
+  const weights = Array.from(mesh.geometry.getAttribute("skinWeight").array);
+  const transforms = mesh.skeleton.bones.map((bone) => bone.matrix.toArray());
+  const overlay = createBoneOverlay(scene);
+  const owned = new Set<THREE.EventDispatcher<{ dispose: object }>>();
+  overlay.group.traverse((object) => {
+    if (object instanceof THREE.InstancedMesh) owned.add(object);
+    if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+      owned.add(object.geometry);
+      for (const material of Array.isArray(object.material) ? object.material : [object.material])
+        owned.add(material);
+    }
+  });
   let released = 0,
     sourceReleased = 0;
-  lines.geometry.addEventListener("dispose", () => released++);
+  for (const resource of owned) resource.addEventListener("dispose", () => released++);
   mesh.geometry.addEventListener("dispose", () => sourceReleased++);
+  overlay.update();
   overlay.dispose();
-  expect(released).toBe(1);
+  overlay.dispose();
+  expect(released).toBe(owned.size);
   expect(sourceReleased).toBe(0);
-  expect(mesh.geometry.getAttribute("skinWeight")).toBe(source);
+  expect(Array.from(mesh.geometry.getAttribute("skinWeight").array)).toEqual(weights);
+  expect(mesh.skeleton.bones.map((bone) => bone.matrix.toArray())).toEqual(transforms);
+});
+
+it("keeps all selected parent branches and gives occluded bones a separate faint depth pass", () => {
+  const root = new THREE.Bone(),
+    left = new THREE.Bone(),
+    right = new THREE.Bone();
+  root.add(left, right);
+  left.position.set(-1, 1, 0);
+  right.position.set(1, 1, 0);
+  const overlay = createBoneOverlay(new THREE.Group().add(root), root.uuid);
+  overlay.update();
+  const selected = overlay.group.getObjectByName("Selected bones") as THREE.InstancedMesh;
+  const bodies = overlay.group.getObjectByName("Octahedral bones") as THREE.InstancedMesh;
+  const hidden = overlay.group.getObjectByName("Occluded bones") as THREE.InstancedMesh;
+  expect(selected.count).toBe(2);
+  expect(bodies.userData.boneIds).toEqual([root.uuid, root.uuid]);
+  const visibleMaterial = bodies.material as THREE.MeshBasicMaterial;
+  const hiddenMaterial = hidden.material as THREE.MeshBasicMaterial;
+  expect(visibleMaterial.depthTest).toBe(true);
+  expect(visibleMaterial.depthFunc).toBe(THREE.LessEqualDepth);
+  expect(hiddenMaterial.depthFunc).toBe(THREE.GreaterDepth);
+  expect(hiddenMaterial.opacity).toBeLessThan(visibleMaterial.opacity);
+  overlay.dispose();
 });

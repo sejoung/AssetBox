@@ -311,4 +311,6 @@ The default window is 1280 × 800px; the minimum is 900 × 600px. At window widt
 
 ## Rigging information
 
-Inspect FBX, GLB and glTF bone hierarchies, search names, view skin bindings and maximum influences, and list animation names, durations and track counts. `Show bones` overlays joints and links on the model. Rigging information does not affect validation grades. Animation playback and IK/control-rig inspection are not supported.
+Inspect FBX, GLB and glTF bone hierarchies, search names, view skin bindings and maximum influences, and list animation names, durations and track counts. `Show bones` overlays shaded octahedral bones and joint spheres on the model. Rigging information does not affect validation grades. Animation playback and IK/control-rig inspection are not supported.
+
+Selecting a bone in the hierarchy or viewport shows direct skin weights and per-mesh influenced vertex counts. Occluded bones are faint, and toggling the overlay preserves the camera.

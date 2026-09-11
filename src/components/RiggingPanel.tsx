@@ -1,3 +1,4 @@
+import type { BoneSelection } from "../lib/boneInfluence";
 import { useMemo, useState } from "react";
 import type { AssetInfo, RiggingInfo } from "../types/asset";
 
@@ -5,10 +6,21 @@ interface Props {
   rigging: RiggingInfo;
   format: AssetInfo["format"];
   bonesVisible: boolean;
+  selection?: BoneSelection | null;
+  onSelectBone?: (id: string) => void;
+  onClearSelection?: () => void;
   onBonesVisibleChange?: (visible: boolean) => void;
 }
 
-function BoneHierarchy({ bones }: { bones: RiggingInfo["bones"] }) {
+function BoneHierarchy({
+  bones,
+  selectedId,
+  onSelect,
+}: {
+  bones: RiggingInfo["bones"];
+  selectedId?: string;
+  onSelect?: (id: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const rows = useMemo(() => {
     const children = new Map<string | null, typeof bones>();
@@ -48,12 +60,20 @@ function BoneHierarchy({ bones }: { bones: RiggingInfo["bones"] }) {
       <ol className="rig-bones" aria-label="Bone hierarchy">
         {matches.slice(0, 200).map(({ bone, depth, parent }) => (
           <li key={bone.id} style={{ paddingLeft: Math.min(depth, 8) * 12 }}>
-            <span className="rig-bone-name" title={`${bone.name} · Parent: ${parent}`}>
-              {bone.name}
-            </span>
-            <span className="rig-parent" title={parent}>
-              {bone.parentId ? `↳ ${parent}` : "Root"}
-            </span>
+            <button
+              type="button"
+              className="rig-bone-button"
+              aria-label={`Select bone ${bone.name}`}
+              aria-pressed={selectedId === bone.id}
+              onClick={() => onSelect?.(bone.id)}
+            >
+              <span className="rig-bone-name" title={`${bone.name} · Parent: ${parent}`}>
+                {bone.name}
+              </span>
+              <span className="rig-parent" title={parent}>
+                {bone.parentId ? `↳ ${parent}` : "Root"}
+              </span>
+            </button>
           </li>
         ))}
       </ol>
@@ -67,7 +87,15 @@ function BoneHierarchy({ bones }: { bones: RiggingInfo["bones"] }) {
   );
 }
 
-export function RiggingPanel({ rigging, format, bonesVisible, onBonesVisibleChange }: Props) {
+export function RiggingPanel({
+  rigging,
+  format,
+  bonesVisible,
+  onBonesVisibleChange,
+  selection,
+  onSelectBone,
+  onClearSelection,
+}: Props) {
   const { bones, skins, clips } = rigging;
   const status = skins.length ? "Skinned" : bones.length ? "Bones only" : "Not found";
   return (
@@ -109,9 +137,50 @@ export function RiggingPanel({ rigging, format, bonesVisible, onBonesVisibleChan
               </button>
             )}
             {bonesVisible && (
-              <p className="stat-hint">Cyan joints and links show bones through surfaces.</p>
+              <p className="stat-hint">
+                Hidden bones appear faint. Select a bone to see the surface it influences.
+              </p>
             )}
-            {bones.length > 0 && <BoneHierarchy bones={bones} />}
+            {selection && (
+              <div className="rig-selection" role="region" aria-label="Bone influence">
+                <strong>{selection.name}</strong>
+                <button className="ui-button" onClick={onClearSelection}>
+                  Clear bone selection
+                </button>
+                <p className="stat-hint">
+                  Direct skin weights for this bone. Unweighted surfaces keep their original
+                  appearance.
+                </p>
+                <div
+                  className="rig-weight-scale"
+                  role="img"
+                  aria-label="Weight colors: blue for low influence, green for medium, amber for full influence"
+                />
+                <div className="rig-weight-labels">
+                  <span>0 · Low</span>
+                  <span>1 · Full</span>
+                </div>
+                {!selection.targets.length && (
+                  <p className="stat-hint">No skin bindings reference this bone.</p>
+                )}
+                {selection.targets.map((target) => (
+                  <div className="rig-entry" key={target.mesh.uuid}>
+                    <strong>{target.name}</strong>
+                    <p>
+                      {target.weights
+                        ? `${target.weightedVertices.toLocaleString()} / ${target.weights.length.toLocaleString()} vertices influenced`
+                        : "Skin weights could not be inspected."}
+                    </p>
+                    {target.weights && target.weightedVertices === 0 && (
+                      <p>This binding has no positive weights for the selected bone.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {bones.length > 0 && (
+              <BoneHierarchy bones={bones} selectedId={selection?.boneId} onSelect={onSelectBone} />
+            )}
             {skins.length > 0 && (
               <details className="rig-details">
                 <summary>

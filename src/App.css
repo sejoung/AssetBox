@@ -923,3 +923,43 @@ kbd {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+.rig-bone-button {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 4px 6px;
+  text-align: left;
+}
+.rig-bone-button:hover {
+  background: var(--bg-panel);
+}
+.rig-bone-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.rig-selection {
+  margin: 8px 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.rig-selection > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.rig-weight-scale {
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #316bdb, #39d4c0, #ffb34d);
+}
+.rig-weight-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 11px;
+}

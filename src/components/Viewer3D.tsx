@@ -1,3 +1,5 @@
+import { BoneInfluenceOverlay } from "./BoneInfluenceOverlay";
+import type { BoneSelection } from "../lib/boneInfluence";
 import { BoneOverlay } from "./BoneOverlay";
 import { collectRigBones } from "../lib/riggingInspection";
 import { applyRetopoOverlay } from "../lib/retopoOverlay";
@@ -384,13 +386,15 @@ function ModelDisplay({
   bonesVisible,
 }: ModelDisplayProps) {
   const { camera, controls, invalidate } = useThree();
+  const bonesVisibleRef = useRef(bonesVisible);
+  bonesVisibleRef.current = bonesVisible;
 
   const focusOnModel = useCallback(() => {
     // Center updates an ancestor transform. Flush that transform before measuring
     // the model so the first camera placement uses the displayed coordinates.
     model.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(model);
-    if (bonesVisible || box.isEmpty()) {
+    if (bonesVisibleRef.current || box.isEmpty()) {
       const position = new THREE.Vector3();
       for (const bone of collectRigBones(model)) box.expandByPoint(bone.getWorldPosition(position));
     }
@@ -408,7 +412,7 @@ function ModelDisplay({
       );
     }
     invalidate();
-  }, [model, camera, controls, invalidate, bonesVisible]);
+  }, [model, camera, controls, invalidate]);
 
   useLayoutEffect(() => {
     focusOnModel();
@@ -552,6 +556,9 @@ interface Viewer3DProps {
   filePath: string | null;
   loadRevision?: number;
   bonesVisible?: boolean;
+  boneSelection?: BoneSelection | null;
+  onSelectBone?: (id: string) => void;
+  onClearBoneSelection?: () => void;
   onModelLoaded?: (model: LoadedModel) => void;
   onError?: (error: Error) => void;
   issueSelection?: IssueSelection | null;
@@ -567,6 +574,9 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
     issueSelection,
     onClearIssue,
     bonesVisible = false,
+    boneSelection,
+    onSelectBone,
+    onClearBoneSelection,
   },
   ref
 ) {
@@ -581,19 +591,23 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const [retopoInfo, setRetopoInfo] = useState<RetopoDiagInfo | null>(null);
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
   const selectedIssue = issueSelection?.source.model === model ? issueSelection : null;
-  const displayViewMode = selectedIssue ? "default" : activeViewMode;
+  const selectedBone = bonesVisible && boneSelection?.model === model ? boneSelection : null;
+  const displayViewMode = selectedIssue || selectedBone ? "default" : activeViewMode;
   const gridRef = useRef<THREE.Object3D | null>(null);
   const screenshotRef = useRef<(() => string | null) | null>(null);
   const focusModelRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!selectedIssue) return;
+    if (!selectedIssue && !selectedBone) return;
     const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) onClearIssue?.();
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        onClearIssue?.();
+        onClearBoneSelection?.();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedIssue, onClearIssue]);
+  }, [selectedIssue, selectedBone, onClearIssue, onClearBoneSelection]);
 
   const handleFocusModel = useCallback(() => {
     focusModelRef.current?.();
@@ -614,6 +628,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const handleViewMode = useCallback(
     (mode: ViewMode) => {
       onClearIssue?.();
+      onClearBoneSelection?.();
       if (mode === activeViewMode) return;
       setViewMode(mode);
 
@@ -642,7 +657,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         });
       });
     },
-    [activeViewMode, onClearIssue]
+    [activeViewMode, onClearIssue, onClearBoneSelection]
   );
 
   useEffect(() => {
@@ -765,11 +780,18 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
               bonesVisible={bonesVisible && !selectedIssue}
               viewMode={displayViewMode}
               onFlippedInfo={setFlippedInfo}
-              focusTarget={selectedIssue ? null : focusTarget}
+              focusTarget={selectedIssue || selectedBone ? null : focusTarget}
               focusModelRef={focusModelRef}
             />
           )}
-          {model && bonesVisible && !selectedIssue && <BoneOverlay model={model} />}
+          {model && bonesVisible && !selectedIssue && (
+            <BoneOverlay
+              model={model}
+              selectedBoneId={selectedBone?.boneId}
+              onSelectBone={onSelectBone}
+            />
+          )}
+          {selectedBone && <BoneInfluenceOverlay selection={selectedBone} />}
           {selectedIssue && <IssueHighlight selection={selectedIssue} />}
 
           {showGrid && !selectedIssue && <SceneGrid gridRef={gridRef} bgMode={bgMode} />}

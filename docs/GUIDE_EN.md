@@ -190,7 +190,7 @@ Max Resolution uses loaded image dimensions and marks partial measurements expli
 
 ### Inspecting rigging
 
-Open an FBX, GLB or glTF model and find `Rigging` in the inspector. Expand `Bone hierarchy` to search bone names and see parents; expand `Skin bindings` for mesh bindings and maximum bone influences per vertex. `Show bones` draws cyan joints and links through the model. `Animation clips` lists names, durations and track counts; playback is not available.
+Open an FBX, GLB or glTF model and find `Rigging` in the inspector. Expand `Bone hierarchy` to search bone names and see parents; expand `Skin bindings` for mesh bindings and maximum bone influences per vertex. `Show bones` preserves the camera and draws occluded bones faintly. Select a bone in the hierarchy or viewport to see its direct skin weights on the model, with per-mesh vertex counts and a 0–1 legend. Clear the selection with `Clear bone selection` or Escape. `Animation clips` lists names, durations and track counts; playback is not available.
 
 These are exported bones and skin data retained by the loader, not Blender IK constraints or control rigs. OBJ does not store rigging data. The [inspection guide](VALIDATION_GUIDE.md) describes the measurement limits.
 

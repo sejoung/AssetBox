@@ -1,3 +1,4 @@
+import { inspectBoneInfluence, type BoneSelection } from "./lib/boneInfluence";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import "./App.css";
 import { DropZone } from "./components/DropZone";
@@ -56,15 +57,27 @@ function App() {
   const [severityByPath, setSeverityByPath] = useState<Record<string, ValidationSeverity>>({});
   const viewerRef = useRef<Viewer3DHandle>(null);
   const inspectionSource = useRef<InspectionSource | null>(null);
+  const [boneSelection, setBoneSelection] = useState<BoneSelection | null>(null);
+  const clearBoneSelection = useCallback(() => setBoneSelection(null), []);
+  const selectBone = useCallback((id: string) => {
+    if (!inspectionSource.current) return;
+    const selection = inspectBoneInfluence(inspectionSource.current.model, id);
+    if (!selection) return;
+    setIssueSelection(null);
+    setBoneSelection(selection);
+    setBonesVisible(true);
+  }, []);
   const [bonesVisible, setBonesVisible] = useState(false);
   const [issueSelection, setIssueSelection] = useState<IssueSelection | null>(null);
   const clearIssue = useCallback(() => setIssueSelection(null), []);
   const selectIssue = useCallback((item: ValidationItem) => {
+    setBoneSelection(null);
     setBonesVisible(false);
     if (inspectionSource.current) setIssueSelection(inspectIssue(inspectionSource.current, item));
   }, []);
   const toggleBones = useCallback((visible: boolean) => {
     setIssueSelection(null);
+    if (!visible) setBoneSelection(null);
     setBonesVisible(visible);
   }, []);
   const selectIssueTarget = useCallback((targetIndex: number) => {
@@ -101,6 +114,7 @@ function App() {
       }
       currentFileRef.current = path;
       epochRef.current++;
+      setBoneSelection(null);
       setBonesVisible(false);
       setAsset(null);
       setValidation(null);
@@ -269,6 +283,7 @@ function App() {
   );
 
   const handleError = useCallback((err: Error) => {
+    setBoneSelection(null);
     setBonesVisible(false);
     setError(err.message);
     setAsset(null);
@@ -388,6 +403,9 @@ function App() {
           filePath={filePath}
           onModelLoaded={handleModelLoaded}
           onError={handleError}
+          boneSelection={boneSelection}
+          onSelectBone={selectBone}
+          onClearBoneSelection={clearBoneSelection}
           bonesVisible={bonesVisible}
           issueSelection={issueSelection}
           onClearIssue={clearIssue}
@@ -401,6 +419,9 @@ function App() {
       issueSelection,
       clearIssue,
       bonesVisible,
+      boneSelection,
+      selectBone,
+      clearBoneSelection,
     ]
   );
 
@@ -503,6 +524,9 @@ function App() {
           viewerRef={viewerRef}
           assetPath={filePath}
           onBonesVisibleChange={toggleBones}
+          boneSelection={boneSelection}
+          onSelectBone={selectBone}
+          onClearBoneSelection={clearBoneSelection}
           bonesVisible={bonesVisible}
           issueSelection={issueSelection}
           onInspectIssue={selectIssue}
