@@ -34,6 +34,7 @@ import type { IssueSelection } from "../lib/issueInspection";
 import { IssueHighlight } from "./IssueHighlight";
 import { PreviewLighting } from "./PreviewLighting";
 import { focusIssueBounds } from "../lib/focusIssueBounds";
+import { CameraClipping } from "./CameraClipping";
 
 // ── Normals visualization ──
 
@@ -434,6 +435,7 @@ function ModelDisplay({
         {viewMode === "uv" && <UVOverlay model={model} />}
         {viewMode === "retopo" && <RetopoDiagnostics model={model} />}
       </Center>
+      <CameraClipping model={model} bonesVisible={bonesVisible} />
       {focusTarget && <CameraFocus target={focusTarget} />}
     </group>
   );

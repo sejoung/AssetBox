@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { updateCameraClipping } from "./cameraClipping";
 
 /** Fit the affected region while retaining the current viewing direction. */
 export function focusIssueBounds(
@@ -32,9 +33,6 @@ export function focusIssueBounds(
   const direction = camera.position.clone().sub(controls?.target ?? center);
   if (direction.lengthSq() < 1e-12) direction.set(1, 0.8, 1);
   camera.position.copy(center).addScaledVector(direction.normalize(), distance);
-  camera.near = Math.max(distance / 10_000, 1e-8);
-  camera.far = Math.max(distance * 20, modelSize * 20);
-  camera.updateProjectionMatrix();
   camera.lookAt(center);
   if (controls) {
     controls.target.copy(center);
@@ -44,4 +42,5 @@ export function focusIssueBounds(
   }
   // Publish the fitted view immediately, before the first paint or pointer event.
   camera.updateMatrixWorld(true);
+  updateCameraClipping(camera, bounds.clone().union(modelBounds));
 }
