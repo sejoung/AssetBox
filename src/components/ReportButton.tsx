@@ -1,3 +1,4 @@
+import { exportPath } from "../lib/exportPaths";
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AssetInfo, ValidationResult } from "../types/asset";
@@ -18,7 +19,7 @@ export function ReportButton({ asset, validation }: ReportButtonProps) {
     setStatus("saving");
     try {
       const html = generateHTMLReport(asset, validation);
-      const reportPath = asset.filePath.replace(/\.[^.]+$/, "_report.html");
+      const reportPath = exportPath(asset.filePath, "report");
       await invoke("save_text_file", { content: html, outputPath: reportPath });
       setStatus("done");
       setTimeout(() => setStatus("idle"), 2000);

@@ -67,8 +67,6 @@ function App() {
   const currentFileRef = useRef(filePath);
   currentFileRef.current = filePath;
 
-  const tree = useFileTree();
-
   /**
    * Bumped on every selection. An in-flight inspection compares the epoch it
    * started with against the current one, so a slow directory scan can never
@@ -81,17 +79,39 @@ function App() {
   }, []);
 
   const batch = useBatchValidation(recordSeverity);
+  const cancelBatch = batch.cancel;
 
-  const selectFile = useCallback((path: string) => {
-    if (path === currentFileRef.current) return;
-    epochRef.current++;
-    setAsset(null);
-    setValidation(null);
-    inspectionSource.current = null;
-    setIssueSelection(null);
-    setError(null);
-    setFilePath(path);
-  }, []);
+  const selectFile = useCallback(
+    (path: string) => {
+      if (path === currentFileRef.current) {
+        clearPrefetch();
+        cancelBatch();
+        setSeverityByPath((previous) => {
+          const next = { ...previous };
+          delete next[path];
+          return next;
+        });
+        setLoadAttempt((value) => value + 1);
+      }
+      currentFileRef.current = path;
+      epochRef.current++;
+      setAsset(null);
+      setValidation(null);
+      inspectionSource.current = null;
+      setIssueSelection(null);
+      setError(null);
+      setFilePath(path);
+    },
+    [cancelBatch]
+  );
+
+  const invalidateSources = useCallback(() => {
+    clearPrefetch();
+    cancelBatch();
+    setSeverityByPath({});
+    if (currentFileRef.current) selectFile(currentFileRef.current);
+  }, [cancelBatch, selectFile]);
+  const tree = useFileTree(invalidateSources);
 
   /** Focus follows the keyboard and the mouse; files additionally load. */
   const activate = useCallback(
@@ -355,7 +375,7 @@ function App() {
     () =>
       filePath ? (
         <Viewer3D
-          key={loadAttempt}
+          loadRevision={loadAttempt}
           ref={viewerRef}
           filePath={filePath}
           onModelLoaded={handleModelLoaded}

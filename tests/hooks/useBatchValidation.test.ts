@@ -20,3 +20,34 @@ it("records a failed batch inspection as incomplete", async () => {
   expect(onResult).toHaveBeenCalledWith("/model.glb", "unknown");
   expect(result.current.progress.running).toBe(false);
 });
+
+it("does not publish a pending result after cancellation and releases its scene", async () => {
+  const { loadModel } = await import("../../src/components/ModelLoader");
+  const THREE = await import("three");
+  // The loader is deferred to simulate a source edit while parsing a model.
+  let finish!: (value: Awaited<ReturnType<typeof loadModel>>) => void;
+  vi.mocked(loadModel).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+  );
+  const onResult = vi.fn();
+  const geometry = new THREE.BoxGeometry();
+  const disposed = vi.fn();
+  geometry.addEventListener("dispose", disposed);
+  const scene = new THREE.Group().add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+  const { result } = renderHook(() => useBatchValidation(onResult));
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.run("/");
+  });
+  act(() => result.current.cancel());
+  await act(async () => {
+    finish({ scene } as Awaited<ReturnType<typeof loadModel>>);
+    await pending;
+  });
+  expect(onResult).not.toHaveBeenCalled();
+  expect(disposed).toHaveBeenCalledOnce();
+  expect(result.current.progress.running).toBe(false);
+});

@@ -49,7 +49,7 @@ describe("ReportButton", () => {
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith("save_text_file", {
         content: expect.any(String),
-        outputPath: "/models/test_report.html",
+        outputPath: "/models/test.glb_report.html",
       });
     });
   });

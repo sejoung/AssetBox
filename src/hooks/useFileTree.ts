@@ -65,10 +65,29 @@ export interface FileTree {
  * manager: `location` is the folder on screen and moving up simply re-roots to
  * the parent, so there is no "open"/"close" state to manage.
  */
-export function useFileTree(): FileTree {
+export function useFileTree(onFilesChanged?: (paths: string[] | null) => void): FileTree {
+  const changeCallback = useRef(onFilesChanged);
+  changeCallback.current = onFilesChanged;
+  const generation = useRef(0);
+  const navigation = useRef(0);
+  const watchQueue = useRef(Promise.resolve());
+  const requests = useRef(new Map<string | null, number>());
+  const mounted = useRef(true);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const invalidateRequests = useCallback(() => {
+    generation.current++;
+    navigation.current++;
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      invalidateRequests();
+    };
+  }, [invalidateRequests]);
   const session = useRef(loadSession()).current;
 
-  const [state, setState] = useState<TreeState>(EMPTY_TREE);
+  const [state, setReactState] = useState<TreeState>(EMPTY_TREE);
   const [modelsOnly, setModelsOnlyState] = useState(session.modelsOnly);
   const [sort, setSortState] = useState<SortMode>(session.sort);
   const [revealed, setRevealed] = useState<string | null>(null);
@@ -82,24 +101,38 @@ export function useFileTree(): FileTree {
   // Callbacks read the latest values through refs so their identities stay
   // stable for effects and the window-level keyboard handler.
   const stateRef = useRef(state);
-  stateRef.current = state;
+  const setState = useCallback((update: TreeState | ((previous: TreeState) => TreeState)) => {
+    const next = typeof update === "function" ? update(stateRef.current) : update;
+    stateRef.current = next;
+    setReactState(next);
+  }, []);
   const modelsOnlyRef = useRef(modelsOnly);
   modelsOnlyRef.current = modelsOnly;
   const sortRef = useRef(sort);
   sortRef.current = sort;
 
-  const fetchInto = useCallback(async (dir: string, target: string | null) => {
-    setState((prev) => setNodeLoading(prev, target, true));
-    try {
-      const entries: DirEntry[] = await listDirectory(dir, modelsOnlyRef.current);
-      setState((prev) => setChildren(prev, target, entries));
-    } catch (err) {
-      log.error("listDirectory failed:", err);
-      setState((prev) =>
-        setNodeError(prev, target, err instanceof Error ? err.message : String(err))
-      );
-    }
-  }, []);
+  const fetchInto = useCallback(
+    async (dir: string, target: string | null) => {
+      const epoch = generation.current;
+      const request = (requests.current.get(target) ?? 0) + 1;
+      requests.current.set(target, request);
+      const current = () =>
+        mounted.current && epoch === generation.current && requests.current.get(target) === request;
+      setState((prev) => setNodeLoading(prev, target, true));
+      try {
+        const entries: DirEntry[] = await listDirectory(dir, modelsOnlyRef.current);
+        if (!current()) return;
+        setState((prev) => setChildren(prev, target, entries));
+      } catch (err) {
+        if (!current()) return;
+        log.error("listDirectory failed:", err);
+        setState((prev) =>
+          setNodeError(prev, target, err instanceof Error ? err.message : String(err))
+        );
+      }
+    },
+    [setState]
+  );
 
   const expandPath = useCallback(
     async (path: string) => {
@@ -108,18 +141,30 @@ export function useFileTree(): FileTree {
       setState((prev) => setExpanded(prev, path, true));
       if (node.children === null) await fetchInto(path, path);
     },
-    [fetchInto]
+    [fetchInto, setState]
   );
 
   const navigate = useCallback(
     async (dir: string, options: NavigateOptions = {}) => {
+      const epoch = ++generation.current;
+      requests.current.clear();
+      const nav = ++navigation.current;
+      // Serialize native watcher replacement; skip queued obsolete roots.
+      watchQueue.current = watchQueue.current.then(async () => {
+        if (!mounted.current || nav !== navigation.current) return;
+        try {
+          await watchDirectory(dir);
+        } catch (err) {
+          log.warn("watch_directory failed:", err);
+        }
+      });
       setState(createTree(dir, sortRef.current));
       setRevealed(options.reveal ?? null);
       setQuery("");
       setRecentFolders(pushRecentFolder(dir));
 
       await fetchInto(dir, null);
-      watchDirectory(dir).catch((err) => log.warn("watch_directory failed:", err));
+      if (epoch !== generation.current || !mounted.current) return;
 
       // Shallow folders first, so a parent is loaded before its child.
       const toExpand = [...(options.expand ?? []), ...(options.reveal ? [options.reveal] : [])]
@@ -127,10 +172,11 @@ export function useFileTree(): FileTree {
         .sort((a, b) => a.length - b.length);
 
       for (const path of toExpand) {
+        if (epoch !== generation.current || !mounted.current) return;
         await expandPath(path);
       }
     },
-    [expandPath, fetchInto]
+    [expandPath, fetchInto, setState]
   );
 
   const navigateUp = useCallback(async () => {
@@ -150,7 +196,7 @@ export function useFileTree(): FileTree {
       }
       await expandPath(path);
     },
-    [expandPath]
+    [expandPath, setState]
   );
 
   const setExpandedPath = useCallback(
@@ -161,41 +207,53 @@ export function useFileTree(): FileTree {
       }
       await expandPath(path);
     },
-    [expandPath]
+    [expandPath, setState]
   );
 
   /** Re-fetches the current folder and everything open beneath it. */
-  const refresh = useCallback(async () => {
-    const current = stateRef.current;
-    if (!current.root) return;
+  const refresh = useCallback(
+    async (notifyChange = true) => {
+      const current = stateRef.current;
+      if (!current.root) return;
 
-    const open = expandedPaths(current);
-    setState((prev) => invalidateChildren(prev));
+      const epoch = ++generation.current;
+      if (notifyChange) changeCallback.current?.(null);
+      setRefreshVersion((value) => value + 1);
+      const open = expandedPaths(current);
+      setState((prev) => invalidateChildren(prev));
 
-    await fetchInto(current.root, null);
-    for (const path of open) {
-      // Folders deleted since the last listing simply drop out of the tree.
-      if (!stateRef.current.nodes[path]) continue;
-      await fetchInto(path, path);
-    }
-  }, [fetchInto]);
+      await fetchInto(current.root, null);
+      for (const path of open) {
+        if (epoch !== generation.current || !mounted.current) return;
+        // Folders deleted since the last listing simply drop out of the tree.
+        if (!stateRef.current.nodes[path]) continue;
+        await fetchInto(path, path);
+      }
+    },
+    [fetchInto, setState]
+  );
 
   const setModelsOnly = useCallback((value: boolean) => {
+    modelsOnlyRef.current = value;
     setModelsOnlyState(value);
     saveSession({ modelsOnly: value });
   }, []);
 
-  const setSort = useCallback((mode: SortMode) => {
-    setSortState(mode);
-    setState((prev) => setSortMode(prev, mode));
-    saveSession({ sort: mode });
-  }, []);
+  const setSort = useCallback(
+    (mode: SortMode) => {
+      sortRef.current = mode;
+      setSortState(mode);
+      setState((prev) => setSortMode(prev, mode));
+      saveSession({ sort: mode });
+    },
+    [setState]
+  );
 
   // Restore the folder and expansion state from the previous run.
   useEffect(() => {
     if (!session.location) return;
-    void navigate(session.location, { expand: session.expanded }).finally(() =>
-      setRestoring(false)
+    void navigate(session.location, { expand: session.expanded }).finally(
+      () => mounted.current && setRestoring(false)
     );
     // Runs once on mount; `session` is a ref snapshot taken before first render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,7 +270,7 @@ export function useFileTree(): FileTree {
   useEffect(() => {
     if (appliedFilter.current === modelsOnly) return;
     appliedFilter.current = modelsOnly;
-    void refresh();
+    void refresh(false);
   }, [modelsOnly, refresh]);
 
   // Filesystem watcher → debounced refresh.
@@ -220,14 +278,38 @@ export function useFileTree(): FileTree {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let unlisten: (() => void) | null = null;
     let disposed = false;
+    let sourceChanged = false;
+    const paths = new Set<string>();
+    let eventRoot: string | null = null;
 
     async function setup() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        const stop = await listen("file-tree-changed", () => {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(() => void refresh(), WATCH_DEBOUNCE_MS);
-        });
+        const stop = await listen<{ root: string; paths: string[] }>(
+          "file-tree-changed",
+          (event) => {
+            if (disposed || (event.payload?.root && event.payload.root !== stateRef.current.root))
+              return;
+            if (eventRoot !== stateRef.current.root) {
+              paths.clear();
+              sourceChanged = false;
+            }
+            eventRoot = stateRef.current.root;
+            for (const path of event.payload?.paths ?? []) paths.add(path);
+            // Older native builds send no paths: conservatively invalidate all.
+            sourceChanged ||=
+              !event.payload?.paths?.length ||
+              event.payload.paths.some((path) => !/_(thumbnail\.png|report\.html)$/i.test(path));
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+              if (disposed || eventRoot !== stateRef.current.root) return;
+              if (sourceChanged) changeCallback.current?.(paths.size ? [...paths] : null);
+              paths.clear();
+              sourceChanged = false;
+              void refresh(false);
+            }, WATCH_DEBOUNCE_MS);
+          }
+        );
         if (disposed) stop();
         else unlisten = stop;
       } catch {
@@ -253,19 +335,29 @@ export function useFileTree(): FileTree {
       return;
     }
 
+    let disposed = false;
+    setResults([]);
     setSearching(true);
     const timer = setTimeout(() => {
       searchFiles(root, trimmed, modelsOnly)
-        .then(setResults)
+        .then((entries) => {
+          if (!disposed) setResults(entries);
+        })
         .catch((err) => {
+          if (disposed) return;
           log.warn("search_files failed:", err);
           setResults([]);
         })
-        .finally(() => setSearching(false));
+        .finally(() => {
+          if (!disposed) setSearching(false);
+        });
     }, SEARCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
-  }, [query, root, modelsOnly]);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+    };
+  }, [query, root, modelsOnly, refreshVersion]);
 
   const rows = useMemo(() => flattenTree(state), [state]);
 

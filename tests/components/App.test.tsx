@@ -171,3 +171,46 @@ it("clears active issue details when another file is selected", async () => {
     "false"
   );
 });
+
+it("clears inspection and cached grades when watched sources change, ignoring older inspection work", async () => {
+  let finish!: (value: Awaited<ReturnType<typeof inspectModel>>) => void;
+  vi.mocked(inspectModel).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+  );
+  render(<App />);
+  fireEvent.click(screen.getByText("first.obj"));
+  fireEvent.click(screen.getByTestId("preview-model"));
+  const invalidate = vi.mocked(useFileTree).mock.calls.slice(-1)[0][0]!;
+  act(() => invalidate(["/models/first.obj"]));
+  await act(async () => {
+    finish({ info: asset, validation: { overall: "bad", items: [], groups: [] } });
+  });
+  expect(
+    screen.queryByRole("complementary", { name: "Asset information" })
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByTestId("preview-model"));
+  expect(
+    await screen.findByRole("complementary", { name: "Asset information" })
+  ).toBeInTheDocument();
+  act(() => invalidate(["/models/textures/wood.png"]));
+  expect(
+    screen.queryByRole("complementary", { name: "Asset information" })
+  ).not.toBeInTheDocument();
+});
+
+it("allows selecting the current file again to reload it", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByText("first.obj"));
+  fireEvent.click(screen.getByTestId("preview-model"));
+  await screen.findByRole("complementary", { name: "Asset information" });
+  fireEvent.click(
+    screen.getByRole("tree").querySelector('[title="first.obj"]') ??
+      screen.getAllByText("first.obj")[0]
+  );
+  expect(
+    screen.queryByRole("complementary", { name: "Asset information" })
+  ).not.toBeInTheDocument();
+});

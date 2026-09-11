@@ -44,7 +44,7 @@ describe("ThumbnailButton", () => {
       expect(mockRef.current.captureScreenshot).toHaveBeenCalled();
       expect(invoke).toHaveBeenCalledWith("save_thumbnail", {
         imageData: "data:image/png;base64,abc",
-        outputPath: "/models/test_thumbnail.png",
+        outputPath: "/models/test.glb_thumbnail.png",
       });
     });
   });

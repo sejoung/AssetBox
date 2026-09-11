@@ -37,7 +37,7 @@ fn classify(path: &Path) -> &'static str {
     }
 }
 
-/// Generated thumbnails live next to the model as `<stem>_thumbnail.png`
+/// Generated thumbnails live next to the model as `<filename.ext>_thumbnail.png`
 /// (see ThumbnailButton). They are hidden from the tree and surfaced as the
 /// owning model's preview image instead.
 fn is_generated_thumbnail(file_name: &str) -> bool {
@@ -45,12 +45,31 @@ fn is_generated_thumbnail(file_name: &str) -> bool {
 }
 
 fn thumbnail_for(path: &Path) -> Option<String> {
-    let stem = path.file_stem()?.to_string_lossy().to_string();
-    let candidate = path.with_file_name(format!("{}_thumbnail.png", stem));
+    let filename = path.file_name()?.to_string_lossy();
+    let candidate = path.with_file_name(format!("{}_thumbnail.png", filename));
     if candidate.is_file() {
-        Some(candidate.to_string_lossy().to_string())
-    } else {
+        return Some(candidate.to_string_lossy().to_string());
+    }
+    // Keep old previews only when their stem has exactly one possible owner.
+    let stem = path.file_stem()?;
+    let legacy = path.with_file_name(format!("{}_thumbnail.png", stem.to_string_lossy()));
+    if !legacy.is_file() {
+        return None;
+    }
+    let ambiguous = std::fs::read_dir(path.parent()?)
+        .ok()?
+        .flatten()
+        .any(|entry| {
+            let sibling = entry.path();
+            sibling != path
+                && sibling.is_file()
+                && classify(&sibling) == "model"
+                && sibling.file_stem() == Some(stem)
+        });
+    if ambiguous {
         None
+    } else {
+        Some(legacy.to_string_lossy().to_string())
     }
 }
 
@@ -175,6 +194,12 @@ pub fn is_directory(path: String) -> bool {
     Path::new(&path).is_dir()
 }
 
+#[derive(Clone, serde::Serialize)]
+struct TreeChange {
+    root: String,
+    paths: Vec<String>,
+}
+
 #[derive(Default)]
 pub struct WatcherState(pub Mutex<Option<RecommendedWatcher>>);
 
@@ -198,23 +223,33 @@ pub fn watch_directory(
     }
 
     let app_handle = app.clone();
-    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        match res {
+    let watched_root = path.clone();
+    let mut watcher =
+        notify::recommended_watcher(move |res: notify::Result<notify::Event>| match res {
             Ok(event) => {
                 let structural = matches!(
                     event.kind,
                     EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_)
                 );
                 if structural {
-                    if let Err(e) = app_handle.emit(TREE_CHANGED_EVENT, ()) {
+                    if let Err(e) = app_handle.emit(
+                        TREE_CHANGED_EVENT,
+                        TreeChange {
+                            root: watched_root.clone(),
+                            paths: event
+                                .paths
+                                .iter()
+                                .map(|path| path.to_string_lossy().to_string())
+                                .collect(),
+                        },
+                    ) {
                         warn!("Failed to emit {}: {}", TREE_CHANGED_EVENT, e);
                     }
                 }
             }
             Err(e) => warn!("Watch error: {}", e),
-        }
-    })
-    .map_err(|e| e.to_string())?;
+        })
+        .map_err(|e| e.to_string())?;
 
     watcher
         .watch(dir, RecursiveMode::Recursive)
@@ -375,7 +410,10 @@ mod tests {
         tmp.dir("Anims");
 
         let entries = list_directory(tmp.path(), false).unwrap();
-        assert_eq!(names(&entries), ["Anims", "textures", "apple.glb", "Zebra.glb"]);
+        assert_eq!(
+            names(&entries),
+            ["Anims", "textures", "apple.glb", "Zebra.glb"]
+        );
     }
 
     #[test]
@@ -390,7 +428,10 @@ mod tests {
         assert_eq!(names(&entries), ["sub", "hero.glb"]);
 
         let all = list_directory(tmp.path(), false).unwrap();
-        assert_eq!(names(&all), ["sub", "hero.glb", "hero_basecolor.png", "notes.txt"]);
+        assert_eq!(
+            names(&all),
+            ["sub", "hero.glb", "hero_basecolor.png", "notes.txt"]
+        );
     }
 
     #[test]
@@ -429,8 +470,34 @@ mod tests {
         let hero = entries.iter().find(|e| e.name == "hero.glb").unwrap();
         let prop = entries.iter().find(|e| e.name == "prop.glb").unwrap();
 
-        assert!(hero.thumbnail_path.as_ref().unwrap().ends_with("hero_thumbnail.png"));
+        assert!(hero
+            .thumbnail_path
+            .as_ref()
+            .unwrap()
+            .ends_with("hero_thumbnail.png"));
         assert!(prop.thumbnail_path.is_none());
+    }
+
+    #[test]
+    fn thumbnails_distinguish_formats_and_reject_ambiguous_legacy_files() {
+        let tmp = TempDir::new("thumb_formats");
+        tmp.file("chair.glb");
+        tmp.file("chair.fbx");
+        tmp.file("chair_thumbnail.png");
+        assert!(list_directory(tmp.path(), true)
+            .unwrap()
+            .iter()
+            .all(|e| e.thumbnail_path.is_none()));
+        tmp.file("chair.glb_thumbnail.png");
+        tmp.file("chair.fbx_thumbnail.png");
+        let entries = search_files(tmp.path(), "chair".into(), true).unwrap();
+        for entry in entries {
+            assert!(entry
+                .thumbnail_path
+                .unwrap()
+                .ends_with(&format!("{}_thumbnail.png", entry.name)));
+        }
+        assert_eq!(list_directory(tmp.path(), false).unwrap().len(), 2);
     }
 
     #[test]
@@ -443,13 +510,25 @@ mod tests {
         tmp.dir("empty");
 
         let filtered = list_directory(tmp.path(), true).unwrap();
-        let flag = |name: &str| filtered.iter().find(|e| e.name == name).unwrap().has_children;
+        let flag = |name: &str| {
+            filtered
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap()
+                .has_children
+        };
         assert!(!flag("textures_only"));
         assert!(flag("with_model"));
         assert!(!flag("empty"));
 
         let unfiltered = list_directory(tmp.path(), false).unwrap();
-        assert!(unfiltered.iter().find(|e| e.name == "textures_only").unwrap().has_children);
+        assert!(
+            unfiltered
+                .iter()
+                .find(|e| e.name == "textures_only")
+                .unwrap()
+                .has_children
+        );
     }
 
     #[test]
@@ -485,7 +564,10 @@ mod tests {
         tmp.file("wood.png");
         tmp.file("wood.glb");
 
-        assert_eq!(names(&search_files(tmp.path(), "wood".into(), true).unwrap()), ["wood.glb"]);
+        assert_eq!(
+            names(&search_files(tmp.path(), "wood".into(), true).unwrap()),
+            ["wood.glb"]
+        );
 
         let mut all = names(&search_files(tmp.path(), "wood".into(), false).unwrap());
         all.sort();
@@ -496,7 +578,9 @@ mod tests {
     fn search_returns_nothing_for_a_blank_query() {
         let tmp = TempDir::new("search_blank");
         tmp.file("hero.glb");
-        assert!(search_files(tmp.path(), "   ".to_string(), true).unwrap().is_empty());
+        assert!(search_files(tmp.path(), "   ".to_string(), true)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

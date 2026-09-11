@@ -199,7 +199,7 @@ Max Resolution uses loaded image dimensions and marks partial measurements expli
 
 #### How to Use
 1. Load a model, then click the "Report" button at the bottom right.
-2. A `_report.html` file is created next to the model file.
+2. A file such as `chair.glb_report.html` is created next to the model, keeping the original extension.
 3. Open in a browser to review, or share with your team.
 
 #### Report Contents
@@ -219,7 +219,7 @@ Max Resolution uses loaded image dimensions and marks partial measurements expli
 #### How to Use
 1. Position the model at your desired view mode and angle.
 2. Click the "Thumbnail" button at the bottom right.
-3. A `_thumbnail.png` file is created next to the model file.
+3. A file such as `chair.glb_thumbnail.png` is created next to the model, keeping the original extension.
 
 #### Tips
 - The grid is automatically excluded from captures.

@@ -58,8 +58,8 @@ AssetBox is a desktop application for quickly previewing and validating 3D asset
 
 | Type | Filename Pattern | Description |
 |------|------------------|-------------|
-| Thumbnail | `{modelname}_thumbnail.png` | Viewport screenshot |
-| Validation Report | `{modelname}_report.html` | Detailed HTML validation report |
+| Thumbnail | `{modelname.extension}_thumbnail.png` | Viewport screenshot |
+| Validation Report | `{modelname.extension}_report.html` | Detailed HTML validation report |
 
 ---
 
@@ -202,12 +202,12 @@ Interactive and batch validation share the same pipeline. Overall priority is Ne
 ### Thumbnail
 - Saves current viewport as a PNG screenshot
 - Grid is automatically excluded from capture
-- Saved as `_thumbnail.png` next to the model file
+- Saved as `chair.glb_thumbnail.png` next to the model, keeping its original extension
 - Status feedback: idle -> saving -> done/failed
 
 ### Validation Report
 - Generates a detailed HTML validation report
-- Saved as `_report.html` next to the model file
+- Saved as `chair.glb_report.html` next to the model, keeping its original extension
 - **Includes:**
   - Generation timestamp
   - File info: format, filename, overall verdict

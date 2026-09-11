@@ -158,6 +158,8 @@ AssetBox 데스크톱 앱의 화면을 추가하거나 수정할 때 사용하�
 
 보기 모드의 이름과 순서는 `Solid (1)`, `Wire (2)`, `Normals (3)`, `Normal Map (4)`, `UV (5)`, `Retopo (6)`입니다. 모드를 추가·변경하면 [ViewerToolbar](../src/components/ViewerToolbar.tsx), [Viewer3D](../src/components/Viewer3D.tsx)의 키보드 처리와 사용 문서를 함께 갱신합니다.
 
+검수 중 원본 파일이 변경되면 이전 결과·위치 강조·내보내기를 비우고 다시 읽습니다. 이때 보기 모드와 배경 설정은 유지합니다. 비동기 파일 목록·검색은 가장 최근 요청만 반영하며, 내보내기 이름에는 원본 확장자를 포함합니다. 자세한 감지 범위는 [검사 기준](VALIDATION_GUIDE.md#파일-변경과-재검사)을 따릅니다.
+
 ## 7. 구현 위치와 변경 방법
 
 | 변경 대상                        | 기준 파일                                                |

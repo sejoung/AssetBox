@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listDirectory } from "./useTauriCommand";
 import { loadModel } from "../components/ModelLoader";
 import { disposeScene } from "../lib/disposeScene";
@@ -41,15 +41,23 @@ async function collectModels(dir: string, depth = 0): Promise<string[]> {
  */
 export function useBatchValidation(onResult: (path: string, severity: ValidationSeverity) => void) {
   const [progress, setProgress] = useState<BatchProgress>(IDLE);
-  const cancelRef = useRef(false);
+  const generation = useRef(0);
+  useEffect(
+    () => () => {
+      generation.current++;
+    },
+    []
+  );
 
   const cancel = useCallback(() => {
-    cancelRef.current = true;
+    generation.current++;
+    setProgress(IDLE);
   }, []);
 
   const run = useCallback(
     async (root: string) => {
-      cancelRef.current = false;
+      const epoch = ++generation.current;
+      const cancelled = () => epoch !== generation.current;
       setProgress({ running: true, done: 0, total: 0, current: "Scanning..." });
 
       let paths: string[];
@@ -57,27 +65,29 @@ export function useBatchValidation(onResult: (path: string, severity: Validation
         paths = await collectModels(root);
       } catch (err) {
         log.error("Batch validation scan failed:", err);
-        setProgress(IDLE);
+        if (!cancelled()) setProgress(IDLE);
         return;
       }
 
+      if (cancelled()) return;
       setProgress({ running: true, done: 0, total: paths.length, current: null });
 
       for (let i = 0; i < paths.length; i++) {
-        if (cancelRef.current) break;
+        if (cancelled()) return;
         const path = paths[i];
         setProgress({ running: true, done: i, total: paths.length, current: baseName(path) });
 
         try {
           const model = await loadModel(path);
           try {
+            if (cancelled()) return;
             const { validation } = await inspectModel(path, model);
-            onResult(path, validation.overall);
+            if (!cancelled()) onResult(path, validation.overall);
           } finally {
             disposeScene(model.scene);
           }
         } catch (err) {
-          onResult(path, "unknown");
+          if (!cancelled()) onResult(path, "unknown");
           log.warn(`Batch validation skipped ${path}:`, err);
         }
 
@@ -85,7 +95,7 @@ export function useBatchValidation(onResult: (path: string, severity: Validation
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
-      setProgress(IDLE);
+      if (!cancelled()) setProgress(IDLE);
     },
     [onResult]
   );

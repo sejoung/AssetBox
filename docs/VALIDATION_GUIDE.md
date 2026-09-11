@@ -70,6 +70,14 @@ AssetBox는 로드된 모델에서 관찰한 사실을 보고합니다. 모델�
 - **주변 파일:** Nearby texture files는 이름 패턴으로 발견한 주변 파일 목록입니다. 해당 모델이 사용하거나 반드시 필요로 하는 파일 목록이 아닙니다. basecolor·normal·roughness를 일괄 필수로 가정하지 않습니다.
 - **Retopo:** 삼각형 분포의 참고 신호입니다. `No density flags`는 다른 토폴로지 항목의 통과를 의미하지 않으며, `Review triangle distribution`도 리토폴로지를 강제하지 않습니다.
 
+## 파일 변경과 재검사
+
+- 현재 탐색 폴더 아래에서 원본·버퍼·텍스처 등의 변경을 감지하면 300ms 동안 묶어 처리하고, 현재 모델을 다시 읽습니다. 보기 모드와 배경 설정은 유지합니다.
+- 파일 간 공유 리소스를 놓치지 않도록 변경 시 메모리에 있는 검사 등급과 미리 읽은 모델 캐시를 비우고 진행 중인 일괄 검사를 취소합니다. 이전 요청이 늦게 끝나도 그 결과를 다시 표시하지 않습니다.
+- `Refresh` 또는 현재 모델 재선택으로 수동 재검사할 수 있습니다. 자동 감지 범위는 탐색 중인 폴더와 하위 폴더입니다. 그 밖의 참조 파일을 편집했거나 감지가 동작하지 않으면 `Refresh`를 사용합니다.
+- 생성된 `_thumbnail.png`·`_report.html`만 변경된 경우 목록을 갱신하고 모델은 다시 읽지 않습니다. 출력 이름에는 원본 확장자를 포함해 `chair.fbx_thumbnail.png`와 `chair.glb_thumbnail.png`를 구분합니다. 예전 썸네일은 같은 이름의 다른 모델 형식이 없을 때만 연결합니다.
+- Retopo 색은 임시 지오메트리에 적용합니다. 원본 정점 색·재질은 보존하며, 파일 교체나 뷰어 종료 시 원본 GPU 자원과 임시 표시 자원을 각각 해제합니다.
+
 ## 코드와 검증
 
 - [geometryDiagnostics.ts](../src/lib/geometryDiagnostics.ts): 변 연결·퇴화 면·노멀 일관성·UV 채널
@@ -77,6 +85,8 @@ AssetBox는 로드된 모델에서 관찰한 사실을 보고합니다. 모델�
 - [IssueHighlight.tsx](../src/components/IssueHighlight.tsx): 원본을 변경하지 않는 위치 표시와 카메라 이동
 - [IssueDetails.tsx](../src/components/IssueDetails.tsx): 오브젝트 이동, 근거·표시 제한 안내
 - [materialInspection.ts](../src/lib/materialInspection.ts): 실제 연결 텍스처와 측정 가능 여부
+- [modelResources.ts](../src/lib/modelResources.ts): 네이티브 경로 인코딩 전 외부 리소스의 상대 경로 해석
+- [disposeScene.ts](../src/lib/disposeScene.ts): 원본 자원 추적과 중복 없는 해제
 - [ModelLoader.ts](../src/components/ModelLoader.ts): 의존 리소스 로딩 완료 후 분석, 실패 리소스 수집
 - [TextureMatcher.ts](../src/components/TextureMatcher.ts): 주변 파일 발견, 모델 파일 크기 읽기
 - [useAssetValidation.ts](../src/hooks/useAssetValidation.ts): 판정·원인·개선 안내

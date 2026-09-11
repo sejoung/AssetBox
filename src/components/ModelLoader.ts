@@ -1,3 +1,4 @@
+import { configureLocalResources } from "../lib/modelResources";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -43,7 +44,7 @@ export interface MeshDiagnostics {
 
 export type { RetopoDiagInfo } from "../types/asset";
 import type { RetopoDiagInfo } from "../types/asset";
-import { disposeScene } from "../lib/disposeScene";
+import { disposeScene, retainSceneResources } from "../lib/disposeScene";
 
 export interface LoadedModel {
   scene: THREE.Group;
@@ -331,7 +332,7 @@ export function convertFilePath(filePath: string): string {
 function loadModelFresh(filePath: string): Promise<LoadedModel> {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
-  const url = filePath.startsWith("http") ? filePath : convertFilePath(filePath);
+  const url = /^https?:\/\//i.test(filePath) ? filePath : convertFilePath(filePath);
 
   return new Promise((resolve, reject) => {
     const failedResources: string[] = [];
@@ -343,6 +344,7 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
       if (!object) return;
       try {
         const stats = analyzeModel(object, ext !== "obj", failedResources);
+        retainSceneResources(object);
         resolve({ scene: object, ...stats });
       } catch (error) {
         disposeScene(object);
@@ -357,11 +359,17 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
       case "glb":
       case "gltf": {
         const loader = new GLTFLoader(manager);
+        if (!/^https?:\/\//i.test(filePath)) {
+          configureLocalResources(loader, filePath, convertFilePath, true);
+        }
         loader.load(url, (gltf) => onLoad(gltf.scene), undefined, reject);
         break;
       }
       case "fbx": {
         const loader = new FBXLoader(manager);
+        if (!/^https?:\/\//i.test(filePath)) {
+          configureLocalResources(loader, filePath, convertFilePath, false);
+        }
         loader.load(url, (fbx) => onLoad(fbx), undefined, reject);
         break;
       }

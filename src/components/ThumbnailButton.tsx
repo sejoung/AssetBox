@@ -1,3 +1,4 @@
+import { exportPath } from "../lib/exportPaths";
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Viewer3DHandle } from "./Viewer3D";
@@ -19,7 +20,7 @@ export function ThumbnailButton({ viewerRef, assetPath, disabled }: ThumbnailBut
     try {
       const dataUrl = viewerRef.current.captureScreenshot();
       if (!dataUrl) throw new Error("Failed to capture screenshot");
-      const thumbnailPath = assetPath.replace(/\.[^.]+$/, "_thumbnail.png");
+      const thumbnailPath = exportPath(assetPath, "thumbnail");
       await invoke("save_thumbnail", { imageData: dataUrl, outputPath: thumbnailPath });
       setStatus("done");
       setTimeout(() => setStatus("idle"), 2000);
