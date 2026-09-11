@@ -39,7 +39,7 @@
 - **탐색기식 이동** — 브레드크럼 클릭 / `↑` 버튼으로 상위·하위 폴더 자유 이동
 - 폴더 단위 lazy 로딩 (하위 폴더는 펼칠 때 읽음)
 - **이름 검색** (`Cmd+F`) — 하위 폴더까지 재귀 검색, 결과는 평면 목록
-- 검수한 파일은 행 왼쪽에 Good / Warning / Bad 색상 바로 표시, **문제만 보기** 필터 지원
+- 검수한 파일은 행 왼쪽에 Checked / Review / Needs attention / Incomplete 색상 바로 표시, **문제만 보기** 필터 지원
 - **Validate all** — 폴더 전체를 순회하며 일괄 검증 (진행률 / 취소 지원)
 - 정렬: 이름 / 크기 / 수정일
 - 우클릭 → Finder(탐색기)에서 보기 · 경로 복사 · 이 폴더 열기
@@ -51,7 +51,7 @@
 |------|----------|-------------|
 | **Solid** | `1` | 기본 렌더링 |
 | **Wire** | `2` | 와이어프레임 (텍스처 제거, 토폴로지 확인) |
-| **Normals** | `3` | 노멀 방향 시각화 (파란색=정상, 빨간색=뒤집힘) |
+| **Normals** | `3` | 노멀 방향 시각화 (빨간색=면 방향과 정점 노멀 불일치) |
 | **Normal Map** | `4` | 노멀을 색상으로 시각화 |
 | **UV** | `5` | 체커보드 텍스처로 UV 매핑 확인 |
 | **Retopo** | `6` | 삼각형 밀도와 형태 진단 |
@@ -66,13 +66,13 @@
 | Category | Items |
 |----------|-------|
 | **Geometry** | Tris, Verts, Meshes, File Size, Degenerate Tris, Dimensions |
-| **Topology** | Non-manifold Edges, Open Edges, Flipped Normals |
+| **Topology** | Non-manifold Edges, Open Edges, Normal Consistency |
 | **UV** | UV Coverage, UV Channels |
 | **Texture** | Texture Count, Missing Textures, Max Resolution |
 | **Material** | Material Count, No Material |
 | **Transform** | Non-uniform Scale, Pivot Offset |
 
-각 항목은 **Good / Warning / Bad** 등급으로 표시되며, 기준 초과 시 임계값 안내를 제공합니다.
+각 항목은 **Checked / Review / Needs attention / Incomplete** 등급으로 표시되며, 기준 초과 시 임계값 안내를 제공합니다.
 
 ### Shortcuts
 | Key | Action |
@@ -178,7 +178,7 @@ src/                              # Frontend (React + TypeScript)
 │   ├── ModelLoader.ts            # FBX/GLB/OBJ loader + mesh analysis
 │   ├── TextureMatcher.ts         # Auto texture matching
 │   ├── InfoPanel.tsx             # Collapsible asset information panel
-│   ├── ValidationBadge.tsx       # Good/Warning/Bad badge
+│   ├── ValidationBadge.tsx       # Inspection status badge
 │   ├── ThumbnailButton.tsx       # Thumbnail capture
 │   └── ReportButton.tsx          # HTML report export
 │   ├── FileTreePanel.tsx         # File browser (navigation, search, batch)
@@ -220,22 +220,17 @@ tests/                            # 136 tests across 14 suites
 
 ---
 
-## Validation Thresholds
+## Validation
 
-| Item | Good | Warning | Bad |
-|------|------|---------|-----|
-| Tris | < 100K | 100K ~ 500K | 500K+ |
-| Verts | < 100K | 100K ~ 300K | 300K+ |
-| Meshes | < 50 | 50 ~ 100 | 100+ |
-| File Size | < 50MB | 50 ~ 100MB | 100MB+ |
-| Max Texture | < 4096px | 4096 ~ 8192px | 8192px+ |
-| Degenerate Tris | < 1% | 1 ~ 5% | 5%+ |
-| Non-manifold | 0 | 1 ~ 50 | 50+ |
-| Flipped Normals | 0 | < 10% | 10%+ |
+검사 결과는 용도에 맞춰 검토합니다. 성능 참고 예산 초과는 Review, 확인하지 못한 값은 Incomplete로 표시합니다. 실제 리소스 읽기 실패와 재질이 요구하는 UV 채널 누락 등은 Needs attention입니다.
+
+항목별 기준과 측정 한계는 [검사 가이드](docs/VALIDATION_GUIDE.md)를 참고하세요. 주변 텍스처 파일명으로 누락을 추정하지 않으며, 해상도는 실제 로드된 이미지에서 측정합니다.
 
 ---
 
 ## Documentation
+
+- [검사 가이드](docs/VALIDATION_GUIDE.md) — 판정 의미, 개선 방향과 측정 한계
 
 - [디자인 가이드 / Design guide (Korean)](docs/DESIGN_GUIDE.md) — UI 원칙, 공통 스타일, 반응형 배치, 상태별 동작과 변경 확인 목록
 - 기능 상세: [한국어](docs/FEATURES_KO.md) · [English](docs/FEATURES_EN.md)

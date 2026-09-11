@@ -81,31 +81,13 @@ Cross-reference with other views for deeper analysis. For example, check areas f
 
 ---
 
-## 4. Using Normals View
+## 4. Using the Normals View
 
 **Shortcut: `3`**
 
-### When to Use
-- Some faces appear black after importing into an engine
-- Investigating abnormal lighting behavior
-- Outline shaders not working correctly
-- Final normal quality check before delivery
+Red points mark vertices belonging to triangles whose winding disagrees with their vertex normals. Blue points or no mismatches do not prove outward orientation. When a loader generates normals, the comparison uses those loaded normals.
 
-### How to Read
-- **Blue points (small):** Correct normals. Faces point outward as expected.
-- **Red points (large):** Flipped normals. Faces point inward, causing invisible or incorrectly lit surfaces.
-
-### "Flipped Normals" Focus Button
-When flipped normals are detected, a red button appears at the bottom center.
-- Shows the count of flipped vertices.
-- Click to automatically move the camera to the problem area.
-- Invaluable for quickly locating issues in complex models.
-
-### How to Fix
-Select the affected faces in your DCC tool and flip the normals:
-- **Maya:** Mesh Display > Reverse Normals
-- **Blender:** Mesh > Normals > Flip
-- **3ds Max:** Edit Normals > Flip
+Use `Normal mismatches (N vertices)` to locate the region, then inspect winding and intended custom normals in the source editor. Correct only unintended inconsistencies rather than flipping all marked faces automatically.
 
 ---
 
@@ -178,7 +160,7 @@ The mesh is colored based on triangle density:
 ### How to Read the Diagnostic Panel
 Values displayed in the top panel:
 
-| Metric | Good | Bad |
+| Metric | Reference range | Review range |
 |--------|------|-----|
 | Thin triangles | < 5% | > 5% — causes texture stretching and lighting artifacts |
 | Over-dense | < 10% | > 10% — wastes rendering resources |
@@ -186,8 +168,8 @@ Values displayed in the top panel:
 | Density ratio | < 100x | > 1000x — extremely uneven density |
 
 ### Practical Decision Making
-- **"Topology OK" (green):** The current topology is usable as-is.
-- **"Retopology Recommended" (red):** Issues found — review the reason list.
+- **"No density flags" (green):** No distribution flags were found; this does not validate other topology properties.
+- **"Review triangle distribution" (red):** Review the reason list against the intended triangle distribution.
   - For game assets: retopology is strongly recommended.
   - For cinematic/render purposes: may be acceptable depending on context.
 
@@ -195,40 +177,14 @@ Values displayed in the top panel:
 
 ## 8. Using the Validation Panel
 
-### When to Use
-- Quickly checking if an asset meets project standards
-- QA team asset inspection
-- Receiving outsourced assets
+Review each finding against the intended use rather than trying to remove every red indicator. See the [validation guide (Korean)](VALIDATION_GUIDE.md) for remediation and measurement limits.
 
-### Panel Structure
-The right panel shows validation results organized into 6 categories.
+- **Review:** Check the target budget, intentional open surfaces, and whether UVs are needed.
+- **Needs attention:** Inspect failed resource paths, required UV channels, or degenerate faces.
+- **Incomplete:** A check could not be completed. OBJ source MTL materials are not resolved; inspect them in the source editor.
+- **Checked:** No flags in the performed checks; target suitability is not guaranteed.
 
-### Practical Use by Category
-
-#### Geometry
-- **Tris/Verts in red:** Directly impacts engine performance. LODs needed or polygon reduction required.
-- **File Size yellow or worse:** Affects loading time and memory. Consider reducing texture resolution or optimizing the mesh.
-- **Degenerate Tris:** Zero-area triangles waste GPU resources. Clean up in your DCC tool.
-
-#### Topology
-- **Non-manifold in red:** Problems for 3D printing and physics simulation. Likely remnants of boolean operations.
-- **Open Edges:** Mesh is not watertight. Can cause transparency issues or shadow artifacts.
-- **Flipped Normals:** Verify in Normals view (`3`) using red points, then fix in your DCC tool.
-
-#### UV
-- **No UVs in red:** Textures cannot be applied. UV unwrapping is mandatory.
-- **UV Channels:** Engines requiring lightmaps (Unity, Unreal) need 2 or more channels.
-
-#### Texture
-- **Missing in red:** Required textures not found. Either missing from delivery or naming convention mismatch.
-- **Max Resolution yellow:** Mobile: 2048px or less recommended. PC/Console: 4096px or less recommended.
-
-#### Material
-- **No Material:** Unassigned material meshes. Will render with default shader in engine — verify if intentional.
-
-#### Scale/Transform
-- **Non-uniform Scale:** Causes lighting and physics issues. Apply Freeze Transform in your DCC tool.
-- **Pivot Offset:** Position will be off when importing into engine. Reset pivot to origin.
+Max Resolution uses loaded image dimensions and marks partial measurements explicitly. Nearby texture files are discovery hints, not material bindings. Center Offset measures the bounding-box center distance from the origin, not pivot correctness.
 
 ---
 
@@ -278,10 +234,10 @@ The right panel shows validation results organized into 6 categories.
 
 ```
 1. Drag and drop the asset file
-2. Check overall verdict in right panel (Good/Warning/Bad)
+2. Check overall verdict in right panel (Checked / Review / Needs attention / Incomplete)
 3. Review red/yellow items in detail:
    - Geometry → polygon/file size within limits
-   - Topology → Non-manifold, Flipped Normals check
+   - Topology → Non-manifold, Normal Consistency check
 4. Normals view (3) → check flipped normals → use focus button to locate
 5. UV view (5) → check texel density uniformity
 6. Retopo view (6) → check mesh quality diagnosis
@@ -319,7 +275,7 @@ The right panel shows validation results organized into 6 categories.
 ```
 1. Drag and drop scanned mesh
 2. Retopo view (6) → check diagnostic panel
-3. If "Retopology Recommended":
+3. If "Review triangle distribution":
    - Review heatmap for blue (over-dense) / red (under-dense) areas
    - Check thin triangle percentage
 4. Process with retopology tools (Instant Meshes, ZRemesher, etc.)

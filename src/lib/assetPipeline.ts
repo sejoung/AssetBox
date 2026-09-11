@@ -3,18 +3,17 @@ import type { LoadedModel } from "../components/ModelLoader";
 import { buildAssetInfo } from "../components/TextureMatcher";
 import { validateAsset } from "../hooks/useAssetValidation";
 
-/** Texture resolution is not read back from the GPU yet; validation assumes 2K. */
-export const DEFAULT_MAX_TEXTURE_RES = 2048;
-
 export function validateLoadedAsset(info: AssetInfo, model: LoadedModel): ValidationResult {
   return validateAsset({
     polyCount: info.polyCount,
     vertexCount: info.vertexCount,
     meshCount: info.meshCount,
     fileSize: info.fileSize,
-    textureCount: info.textures.length,
-    missingTextureCount: info.missingTextures.length,
-    maxTextureRes: DEFAULT_MAX_TEXTURE_RES,
+    textureCount: model.textureInspection.count,
+    failedResourceCount: model.textureInspection.failedResources.length,
+    maxTextureRes: model.textureInspection.maxResolution,
+    textureReferencesVerified: model.textureInspection.referencesVerified,
+    unknownTextureResolutions: model.textureInspection.unknownResolutions,
     diagnostics: model.diagnostics,
   });
 }

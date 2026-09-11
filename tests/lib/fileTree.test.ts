@@ -301,10 +301,18 @@ describe("issue filtering", () => {
   });
 
   it("counts warnings and failures", () => {
-    expect(countIssues(rows, severity)).toEqual({ warning: 0, bad: 1 });
+    expect(countIssues(rows, severity)).toEqual({ warning: 0, bad: 1, unknown: 0 });
     expect(countIssues(rows, { "/root/a.glb": "warning", "/root/sub/c.obj": "warning" })).toEqual({
       warning: 2,
       bad: 0,
+      unknown: 0,
     });
   });
+});
+
+it("includes incomplete inspections in the review filter and counts them separately", () => {
+  const rows = flattenTree(buildTree());
+  const severity = { "/root/a.glb": "unknown" } as const;
+  expect(filterIssues(rows, severity).map((row) => row.path)).toContain("/root/a.glb");
+  expect(countIssues(rows, severity)).toEqual({ warning: 0, bad: 0, unknown: 1 });
 });

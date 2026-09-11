@@ -97,7 +97,7 @@ describe("InfoPanel", () => {
         {...defaultProps}
       />
     );
-    expect(screen.getByText("Missing: roughness")).toBeInTheDocument();
+    expect(screen.getByText("Failed resources: roughness")).toBeInTheDocument();
   });
 
   it("can collapse and restore the inspector", () => {
@@ -108,4 +108,30 @@ describe("InfoPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Info/ }));
     expect(screen.getByText("Geometry")).toBeInTheDocument();
   });
+});
+
+it("keeps incomplete checks separate from confirmed issue counts", () => {
+  const item = {
+    label: "Max Resolution",
+    value: "Unknown",
+    severity: "unknown" as const,
+    category: "texture" as const,
+    threshold: "Dimensions could not be measured.",
+  };
+  render(
+    <InfoPanel
+      asset={{ ...mockAssetInfo, fileSize: null }}
+      validation={{
+        overall: "unknown",
+        items: [item],
+        groups: [{ category: "texture", label: "Texture", items: [item] }],
+      }}
+      {...defaultProps}
+    />
+  );
+  expect(screen.getByText("Incomplete")).toBeInTheDocument();
+  expect(screen.getByText("1 unchecked")).toBeInTheDocument();
+  expect(screen.queryByText("1 issue")).not.toBeInTheDocument();
+  expect(screen.getByText("Size unknown")).toBeInTheDocument();
+  expect(screen.getByText("Dimensions could not be measured.")).toBeInTheDocument();
 });

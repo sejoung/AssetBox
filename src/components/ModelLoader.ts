@@ -2,6 +2,18 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import * as THREE from "three";
+import {
+  analyzeEdges,
+  analyzeNormalConsistency,
+  countDegenerateTriangles,
+  uvChannels,
+} from "../lib/geometryDiagnostics";
+import {
+  inspectTextures,
+  materialTextures,
+  meshMaterials,
+  type TextureInspection,
+} from "../lib/materialInspection";
 import { convertFileSrc } from "@tauri-apps/api/core";
 
 export interface MeshDiagnostics {
@@ -12,7 +24,9 @@ export interface MeshDiagnostics {
   // Topology
   nonManifoldEdgeCount: number;
   openEdgeCount: number;
-  flippedNormalTriCount: number;
+  normalMismatchTriCount: number;
+  uncheckedNormalTriCount: number;
+  meshesMissingRequiredUV: number;
 
   // UV
   meshesWithoutUV: number;
@@ -36,142 +50,26 @@ export interface LoadedModel {
   polyCount: number;
   vertexCount: number;
   meshCount: number;
-  hasEmbeddedTextures: boolean;
+  textureInspection: TextureInspection;
   diagnostics: MeshDiagnostics;
   retopoDiag: RetopoDiagInfo;
 }
 
-const DEGENERATE_AREA_THRESHOLD = 1e-8;
-
-function getTriangleIndices(geometry: THREE.BufferGeometry): {
-  triCount: number;
-  getIndices: (i: number) => [number, number, number];
-} {
-  const index = geometry.index;
-  const posCount = geometry.attributes.position.count;
-  const triCount = index ? index.count / 3 : posCount / 3;
-
-  const getIndices = index
-    ? (i: number): [number, number, number] => [
-        index.getX(i * 3),
-        index.getX(i * 3 + 1),
-        index.getX(i * 3 + 2),
-      ]
-    : (i: number): [number, number, number] => [i * 3, i * 3 + 1, i * 3 + 2];
-
-  return { triCount, getIndices };
-}
-
-function countDegenerateTriangles(geometry: THREE.BufferGeometry): number {
-  const position = geometry.attributes.position;
-  if (!position) return 0;
-
-  const { triCount, getIndices } = getTriangleIndices(geometry);
-  const vA = new THREE.Vector3();
-  const vB = new THREE.Vector3();
-  const vC = new THREE.Vector3();
-  const edge1 = new THREE.Vector3();
-  const edge2 = new THREE.Vector3();
-  const cross = new THREE.Vector3();
-
-  let degenerate = 0;
-  for (let i = 0; i < triCount; i++) {
-    const [a, b, c] = getIndices(i);
-    vA.fromBufferAttribute(position, a);
-    vB.fromBufferAttribute(position, b);
-    vC.fromBufferAttribute(position, c);
-    edge1.subVectors(vB, vA);
-    edge2.subVectors(vC, vA);
-    cross.crossVectors(edge1, edge2);
-    if (cross.lengthSq() < DEGENERATE_AREA_THRESHOLD) degenerate++;
-  }
-  return degenerate;
-}
-
-function edgeKey(a: number, b: number): string {
-  return a < b ? `${a}_${b}` : `${b}_${a}`;
-}
-
-function analyzeEdges(geometry: THREE.BufferGeometry): { nonManifold: number; openEdges: number } {
-  const position = geometry.attributes.position;
-  if (!position) return { nonManifold: 0, openEdges: 0 };
-
-  const { triCount, getIndices } = getTriangleIndices(geometry);
-  const edgeFaceCount = new Map<string, number>();
-
-  for (let i = 0; i < triCount; i++) {
-    const [a, b, c] = getIndices(i);
-    for (const key of [edgeKey(a, b), edgeKey(b, c), edgeKey(c, a)]) {
-      edgeFaceCount.set(key, (edgeFaceCount.get(key) ?? 0) + 1);
-    }
-  }
-
-  let nonManifold = 0;
-  let openEdges = 0;
-  for (const count of edgeFaceCount.values()) {
-    if (count > 2) nonManifold++;
-    if (count === 1) openEdges++;
-  }
-
-  return { nonManifold, openEdges };
-}
-
-function countFlippedNormalTriangles(geometry: THREE.BufferGeometry): number {
-  const position = geometry.attributes.position;
-  const normal = geometry.attributes.normal;
-  if (!position || !normal) return 0;
-
-  const { triCount, getIndices } = getTriangleIndices(geometry);
-  const vA = new THREE.Vector3();
-  const vB = new THREE.Vector3();
-  const vC = new THREE.Vector3();
-  const nA = new THREE.Vector3();
-  const nB = new THREE.Vector3();
-  const nC = new THREE.Vector3();
-  const edge1 = new THREE.Vector3();
-  const edge2 = new THREE.Vector3();
-  const faceNormal = new THREE.Vector3();
-  const avgNormal = new THREE.Vector3();
-
-  let flipped = 0;
-  for (let i = 0; i < triCount; i++) {
-    const [a, b, c] = getIndices(i);
-    vA.fromBufferAttribute(position, a);
-    vB.fromBufferAttribute(position, b);
-    vC.fromBufferAttribute(position, c);
-    edge1.subVectors(vB, vA);
-    edge2.subVectors(vC, vA);
-    faceNormal.crossVectors(edge1, edge2);
-    if (faceNormal.lengthSq() < DEGENERATE_AREA_THRESHOLD) continue;
-
-    nA.fromBufferAttribute(normal, a);
-    nB.fromBufferAttribute(normal, b);
-    nC.fromBufferAttribute(normal, c);
-    avgNormal.addVectors(nA, nB).add(nC);
-    if (avgNormal.lengthSq() < DEGENERATE_AREA_THRESHOLD) continue;
-
-    if (faceNormal.dot(avgNormal) < 0) flipped++;
-  }
-  return flipped;
-}
-
-function countUVChannels(geometry: THREE.BufferGeometry): number {
-  let count = 0;
-  if (geometry.attributes.uv) count++;
-  if (geometry.attributes.uv2) count++;
-  return count;
-}
-
-function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
+export function analyzeModel(
+  object: THREE.Object3D,
+  referencesVerified = true,
+  failedResources: string[] = []
+): Omit<LoadedModel, "scene"> {
   let polyCount = 0;
   let vertexCount = 0;
   let meshCount = 0;
-  let hasEmbeddedTextures = false;
   let meshesWithoutUV = 0;
   let degenerateTriCount = 0;
   let nonManifoldEdgeCount = 0;
   let openEdgeCount = 0;
-  let flippedNormalTriCount = 0;
+  let normalMismatchTriCount = 0;
+  let uncheckedNormalTriCount = 0;
+  let meshesMissingRequiredUV = 0;
   const uvChannelCounts: number[] = [];
   const materialSet = new Set<string>();
   let meshesWithoutMaterial = 0;
@@ -190,10 +88,11 @@ function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
       vertexCount += geometry.attributes.position.count;
 
       // UV
-      if (!geometry.attributes.uv) {
+      const channels = uvChannels(geometry);
+      if (channels.length === 0) {
         meshesWithoutUV++;
       }
-      uvChannelCounts.push(countUVChannels(geometry));
+      uvChannelCounts.push(channels.length);
 
       // Geometry quality
       degenerateTriCount += countDegenerateTriangles(geometry);
@@ -202,21 +101,30 @@ function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
       const edges = analyzeEdges(geometry);
       nonManifoldEdgeCount += edges.nonManifold;
       openEdgeCount += edges.openEdges;
-      flippedNormalTriCount += countFlippedNormalTriangles(geometry);
+      const normals = analyzeNormalConsistency(geometry);
+      normalMismatchTriCount += normals.mismatches;
+      uncheckedNormalTriCount += normals.unchecked;
 
       // Material
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      const materials = meshMaterials(child);
       if (!child.material || materials.length === 0) {
         meshesWithoutMaterial++;
       }
+      let missingRequiredUV = false;
       for (const mat of materials) {
         if (mat) {
           materialSet.add(mat.uuid);
-          if ((mat as THREE.MeshStandardMaterial).map) {
-            hasEmbeddedTextures = true;
-          }
+          const textures = materialTextures(mat);
+          if (
+            textures.some(
+              (texture) =>
+                texture.mapping === THREE.UVMapping && !channels.includes(texture.channel)
+            )
+          )
+            missingRequiredUV = true;
         }
       }
+      if (missingRequiredUV) meshesMissingRequiredUV++;
     }
 
     // Transform check — non-uniform scale on any object
@@ -241,7 +149,7 @@ function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
     polyCount,
     vertexCount,
     meshCount,
-    hasEmbeddedTextures,
+    textureInspection: inspectTextures(object, referencesVerified, failedResources),
     diagnostics: {
       degenerateTriCount,
       boundingBox: {
@@ -251,7 +159,9 @@ function analyzeModel(object: THREE.Object3D): Omit<LoadedModel, "scene"> {
       },
       nonManifoldEdgeCount,
       openEdgeCount,
-      flippedNormalTriCount,
+      normalMismatchTriCount,
+      uncheckedNormalTriCount,
+      meshesMissingRequiredUV,
       meshesWithoutUV,
       uvChannelCounts,
       materialCount: materialSet.size,
@@ -316,7 +226,7 @@ export function analyzeRetopo(object: THREE.Object3D): RetopoDiagInfo {
       const edgeCA = vC.distanceTo(vA);
       const longest = Math.max(edgeAB, edgeBC, edgeCA);
       const shortest = Math.min(edgeAB, edgeBC, edgeCA);
-      if ((shortest > 1e-10 ? longest / shortest : 100) > 10) thinCount++;
+      if ((shortest > 0 ? longest / shortest : 100) > 10) thinCount++;
     }
   });
 
@@ -336,7 +246,7 @@ export function analyzeRetopo(object: THREE.Object3D): RetopoDiagInfo {
   }
 
   const avgArea = sum / totalTris;
-  const densityRatio = minArea > 1e-10 ? maxArea / minArea : Infinity;
+  const densityRatio = minArea > 0 ? maxArea / minArea : Infinity;
 
   // Second pass: count over/under-dense (needs avgArea from first pass)
   let overDenseCount = 0;
@@ -424,25 +334,39 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
   const url = filePath.startsWith("http") ? filePath : convertFilePath(filePath);
 
   return new Promise((resolve, reject) => {
-    const onLoad = (object: THREE.Group) => {
-      const stats = analyzeModel(object);
-      resolve({ scene: object, ...stats });
+    const failedResources: string[] = [];
+    const manager = new THREE.LoadingManager();
+    manager.onError = (url) => failedResources.push(url);
+    let object: THREE.Group | null = null;
+    // FBX may finish parsing before its images. Inspect after all manager items finish.
+    manager.onLoad = () => {
+      if (!object) return;
+      try {
+        const stats = analyzeModel(object, ext !== "obj", failedResources);
+        resolve({ scene: object, ...stats });
+      } catch (error) {
+        disposeScene(object);
+        reject(error);
+      }
+    };
+    const onLoad = (loaded: THREE.Group) => {
+      object = loaded;
     };
 
     switch (ext) {
       case "glb":
       case "gltf": {
-        const loader = new GLTFLoader();
+        const loader = new GLTFLoader(manager);
         loader.load(url, (gltf) => onLoad(gltf.scene), undefined, reject);
         break;
       }
       case "fbx": {
-        const loader = new FBXLoader();
+        const loader = new FBXLoader(manager);
         loader.load(url, (fbx) => onLoad(fbx), undefined, reject);
         break;
       }
       case "obj": {
-        const loader = new OBJLoader();
+        const loader = new OBJLoader(manager);
         loader.load(url, (obj) => onLoad(obj as THREE.Group), undefined, reject);
         break;
       }

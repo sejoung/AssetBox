@@ -16,12 +16,12 @@ export async function buildAssetInfo(filePath: string, model: LoadedModel): Prom
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
 
   let textures: TextureInfo[] = [];
-  let fileSize = 0;
+  let fileSize: number | null = null;
 
   try {
     const scanResult: ScanResult = await scanAssetDirectory(filePath);
 
-    fileSize = scanResult.model_file_size;
+    fileSize = scanResult.model_file_size > 0 ? scanResult.model_file_size : null;
 
     textures = findTexturesInFileList(scanResult.textures.map((t) => t.file_path));
 
@@ -36,13 +36,8 @@ export async function buildAssetInfo(filePath: string, model: LoadedModel): Prom
     log.warn("Directory scan failed, continuing without textures:", err);
   }
 
-  // Only check for missing external textures if:
-  // - The model has no embedded textures (e.g. OBJ with separate files)
-  // - AND there are some external texture files found (implies the user intended separate textures)
-  const foundTypes = new Set(textures.map((t) => t.type));
-  const expectedTypes = ["basecolor", "normal", "roughness"] as const;
-  const shouldCheckMissing = !model.hasEmbeddedTextures && textures.length > 0;
-  const missingTextures = shouldCheckMissing ? expectedTypes.filter((t) => !foundTypes.has(t)) : [];
+  // Nearby filenames are discovery hints, not evidence of a material dependency.
+  const missingTextures = model.textureInspection.failedResources;
 
   return {
     fileName,

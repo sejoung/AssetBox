@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatFileSize } from "../lib/fileTree";
 import type {
   ValidationResult,
   ValidationItem,
@@ -7,15 +8,18 @@ import type {
   ValidationGroup,
 } from "../types/asset";
 import type { MeshDiagnostics } from "../components/ModelLoader";
+import { worstSeverity } from "../lib/validationStatus";
 
 export interface ValidationInput {
   polyCount: number;
   vertexCount: number;
   meshCount: number;
-  fileSize: number;
+  fileSize: number | null;
   textureCount: number;
-  missingTextureCount: number;
-  maxTextureRes: number;
+  failedResourceCount: number;
+  maxTextureRes: number | null;
+  textureReferencesVerified: boolean;
+  unknownTextureResolutions: number;
   diagnostics: MeshDiagnostics;
 }
 
@@ -23,29 +27,6 @@ function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toString();
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${bytes} B`;
-}
-
-function worst(...severities: ValidationSeverity[]): ValidationSeverity {
-  if (severities.includes("bad")) return "bad";
-  if (severities.includes("warning")) return "warning";
-  return "good";
-}
-
-function item(
-  category: ValidationCategory,
-  label: string,
-  value: string,
-  severity: ValidationSeverity,
-  threshold?: string
-): ValidationItem {
-  return { category, label, value, severity, threshold };
 }
 
 const CATEGORY_LABELS: Record<ValidationCategory, string> = {
@@ -57,221 +38,222 @@ const CATEGORY_LABELS: Record<ValidationCategory, string> = {
   transform: "Scale / Transform",
 };
 
-const CATEGORY_ORDER: ValidationCategory[] = [
-  "geometry",
-  "topology",
-  "uv",
-  "texture",
-  "material",
-  "transform",
-];
-
 export function validateAsset(input: ValidationInput): ValidationResult {
   const items: ValidationItem[] = [];
   const d = input.diagnostics;
-
-  // ── Geometry ──
-  const polySev: ValidationSeverity =
-    input.polyCount > 500_000 ? "bad" : input.polyCount > 100_000 ? "warning" : "good";
-  items.push(
-    item("geometry", "Tris", formatNumber(input.polyCount), polySev, "< 100K good · < 500K warning")
+  const add = (
+    category: ValidationCategory,
+    label: string,
+    value: string,
+    severity: ValidationSeverity,
+    threshold?: string
+  ) => {
+    items.push({ category, label, value, severity, threshold });
+  };
+  // These are reference budgets, not proof that an asset is defective.
+  add(
+    "geometry",
+    "Tris",
+    formatNumber(input.polyCount),
+    input.polyCount > 100_000 ? "warning" : "good",
+    "Reference budget: ≤ 100K triangles. Consider LODs or simplification only if the target budget requires it."
   );
-
-  const vertSev: ValidationSeverity =
-    input.vertexCount > 300_000 ? "bad" : input.vertexCount > 100_000 ? "warning" : "good";
-  items.push(
-    item(
-      "geometry",
-      "Verts",
-      formatNumber(input.vertexCount),
-      vertSev,
-      "< 100K good · < 300K warning"
-    )
+  add(
+    "geometry",
+    "Verts",
+    formatNumber(input.vertexCount),
+    input.vertexCount > 100_000 ? "warning" : "good",
+    "Reference budget: ≤ 100K render vertices. UV and normal seams can increase this count."
   );
-
-  const meshSev: ValidationSeverity =
-    input.meshCount > 100 ? "bad" : input.meshCount > 50 ? "warning" : "good";
-  items.push(
-    item("geometry", "Meshes", input.meshCount.toString(), meshSev, "< 50 good · < 100 warning")
+  add(
+    "geometry",
+    "Meshes",
+    String(input.meshCount),
+    input.meshCount === 0 ? "unknown" : input.meshCount > 50 ? "warning" : "good",
+    input.meshCount === 0
+      ? "No meshes were available for inspection."
+      : "Reference budget: ≤ 50 meshes. Review scene structure against the target renderer."
   );
-
-  items.push(
-    item(
-      "geometry",
-      "File Size",
-      formatFileSize(input.fileSize),
-      input.fileSize > 100 * 1024 * 1024
-        ? "bad"
-        : input.fileSize > 50 * 1024 * 1024
-          ? "warning"
-          : "good",
-      "< 50MB good · < 100MB warning"
-    )
+  add(
+    "geometry",
+    "File Size",
+    input.fileSize === null ? "Unknown" : formatFileSize(input.fileSize),
+    input.fileSize === null ? "unknown" : input.fileSize > 50 * 1024 * 1024 ? "warning" : "good",
+    input.fileSize === null
+      ? "File metadata could not be read. Reopen the folder and inspect again."
+      : "Reference budget: ≤ 50 MiB. Check loading time and storage requirements before reducing data."
   );
-
   if (d.degenerateTriCount > 0) {
-    const pct = input.polyCount > 0 ? d.degenerateTriCount / input.polyCount : 0;
-    items.push(
-      item(
-        "geometry",
-        "Degenerate Tris",
-        formatNumber(d.degenerateTriCount),
-        pct > 0.05 ? "bad" : pct > 0.01 ? "warning" : "good",
-        "< 1% good · < 5% warning"
-      )
+    const ratio = input.polyCount > 0 ? d.degenerateTriCount / input.polyCount : 0;
+    add(
+      "geometry",
+      "Degenerate Tris",
+      formatNumber(d.degenerateTriCount),
+      ratio > 0.05 ? "bad" : "warning",
+      "Zero-area or numerically collapsed triangles. Inspect and remove unintended degenerate faces; > 5% needs attention."
     );
   }
-
   const bb = d.boundingBox;
-  items.push(item("geometry", "Dimensions", `${bb.x} × ${bb.y} × ${bb.z}`, "good"));
+  add("geometry", "Dimensions", `${bb.x} × ${bb.y} × ${bb.z}`, "good");
 
-  // ── Topology ──
-  if (d.nonManifoldEdgeCount > 0) {
-    items.push(
-      item(
-        "topology",
-        "Non-manifold",
-        `${d.nonManifoldEdgeCount} edges`,
-        d.nonManifoldEdgeCount > 50 ? "bad" : "warning",
-        "Edges shared by 3+ faces"
-      )
+  const edgeNote =
+    "Exact coincident positions are joined within each mesh for this check; this does not prove a closed volume.";
+  add(
+    "topology",
+    "Non-manifold",
+    d.nonManifoldEdgeCount ? `${d.nonManifoldEdgeCount} edges` : "None detected",
+    d.nonManifoldEdgeCount ? "warning" : "good",
+    `Edges shared by 3+ faces. Inspect overlapping/internal faces if unintended. ${edgeNote}`
+  );
+  add(
+    "topology",
+    "Open Edges",
+    d.openEdgeCount ? String(d.openEdgeCount) : "None detected",
+    d.openEdgeCount ? "warning" : "good",
+    `Boundary edges may be intentional on open surfaces. Close only unintended gaps. ${edgeNote}`
+  );
+  add(
+    "topology",
+    "Normal Consistency",
+    d.normalMismatchTriCount
+      ? `${formatNumber(d.normalMismatchTriCount)} mismatched tris`
+      : d.uncheckedNormalTriCount > 0
+        ? "Incomplete"
+        : "No mismatches",
+    d.normalMismatchTriCount ? "warning" : d.uncheckedNormalTriCount > 0 ? "unknown" : "good",
+    "Compares triangle winding with vertex normals, not inside/outside. Inspect marked vertices in Normals view before recalculating normals."
+  );
+  if (d.uncheckedNormalTriCount > 0)
+    add(
+      "topology",
+      "Unchecked Normals",
+      `${d.uncheckedNormalTriCount} tris`,
+      "unknown",
+      "Missing/invalid normals or degenerate faces prevent this check. Inspect in the source editor."
     );
-  } else {
-    items.push(item("topology", "Non-manifold", "Clean", "good"));
-  }
 
-  if (d.openEdgeCount > 0) {
-    items.push(
-      item(
-        "topology",
-        "Open Edges",
-        `${d.openEdgeCount}`,
-        d.openEdgeCount > 100 ? "bad" : "warning",
-        "Boundary edges — mesh is not watertight"
-      )
+  if (d.meshesMissingRequiredUV > 0)
+    add(
+      "uv",
+      "Missing Required UVs",
+      `${d.meshesMissingRequiredUV} meshes`,
+      "bad",
+      "A loaded material texture references a UV channel absent from its mesh. Add/export that channel or correct the material binding."
     );
-  } else {
-    items.push(item("topology", "Open Edges", "Watertight", "good"));
-  }
-
-  if (d.flippedNormalTriCount > 0) {
-    const pct = input.polyCount > 0 ? d.flippedNormalTriCount / input.polyCount : 0;
-    const pctStr = (pct * 100).toFixed(1);
-    items.push(
-      item(
-        "topology",
-        "Flipped Normals",
-        `${formatNumber(d.flippedNormalTriCount)} (${pctStr}%)`,
-        pct > 0.1 ? "bad" : "warning",
-        "Normals pointing inward — visible as red in Normals view"
-      )
+  if (d.meshesWithoutUV > 0)
+    add(
+      "uv",
+      "No UVs",
+      `${d.meshesWithoutUV} / ${input.meshCount} meshes`,
+      "warning",
+      "UVs are needed for UV-mapped textures, but may be unnecessary for constant-color or generated-coordinate materials. Unwrap only when needed."
     );
-  } else {
-    items.push(item("topology", "Flipped Normals", "None", "good"));
-  }
+  else add("uv", "UV Coverage", "All meshes", "good");
+  const maxChannels = d.uvChannelCounts.length ? Math.max(...d.uvChannelCounts) : 0;
+  add(
+    "uv",
+    "UV Channels",
+    String(maxChannels),
+    "good",
+    "Counts available uv, uv1, uv2… attributes; this does not verify unwrap quality."
+  );
 
-  // ── UV ──
-  if (d.meshesWithoutUV > 0) {
-    items.push(
-      item(
-        "uv",
-        "No UVs",
-        `${d.meshesWithoutUV} / ${input.meshCount} meshes`,
-        d.meshesWithoutUV === input.meshCount ? "bad" : "warning",
-        "All meshes should have UV coordinates"
-      )
+  add(
+    "texture",
+    "Bound Textures",
+    input.textureReferencesVerified ? String(input.textureCount) : "Unknown",
+    input.textureReferencesVerified ? "good" : "unknown",
+    "Counts unique textures bound to the loaded scene. OBJ material-library references are not resolved by this loader."
+  );
+  if (input.failedResourceCount > 0)
+    add(
+      "texture",
+      "Failed Resources",
+      String(input.failedResourceCount),
+      "bad",
+      "The loader reported failed resource requests. Check the listed paths, access permissions and source material references, then reload."
     );
-  } else {
-    items.push(item("uv", "UV Coverage", "All meshes", "good"));
-  }
-
-  const maxChannels = d.uvChannelCounts.length > 0 ? Math.max(...d.uvChannelCounts) : 0;
-  items.push(item("uv", "UV Channels", `${maxChannels}`, maxChannels > 0 ? "good" : "warning"));
-
-  // ── Texture ──
-  items.push(item("texture", "Textures", input.textureCount.toString(), "good"));
-
-  if (input.missingTextureCount > 0) {
-    items.push(
-      item(
-        "texture",
-        "Missing",
-        input.missingTextureCount.toString(),
-        input.missingTextureCount > 2 ? "bad" : "warning",
-        "0 good · 1-2 warning · 3+ bad"
-      )
-    );
-  }
-
-  items.push(
-    item(
+  const resolutionComplete =
+    input.textureReferencesVerified &&
+    input.unknownTextureResolutions === 0 &&
+    input.failedResourceCount === 0;
+  if (input.maxTextureRes !== null) {
+    add(
       "texture",
       "Max Resolution",
-      `${input.maxTextureRes}px`,
-      input.maxTextureRes > 8192 ? "bad" : input.maxTextureRes > 4096 ? "warning" : "good",
-      "< 4096 good · < 8192 warning"
-    )
+      `${input.maxTextureRes}px${resolutionComplete ? "" : " (partial)"}`,
+      input.maxTextureRes > 4096 ? "warning" : resolutionComplete ? "good" : "unknown",
+      "Measured from loaded texture dimensions. Reference budget: ≤ 4096px; review detail and memory needs before resizing."
+    );
+    if (!resolutionComplete)
+      add(
+        "texture",
+        "Texture Inspection",
+        "Incomplete",
+        "unknown",
+        "Some resource dimensions or material references could not be checked. The displayed maximum covers measured textures only."
+      );
+  } else {
+    const unused = resolutionComplete && input.textureCount === 0;
+    add(
+      "texture",
+      "Max Resolution",
+      unused ? "Not used" : "Unknown",
+      unused ? "good" : "unknown",
+      unused
+        ? "No texture maps are bound to the loaded materials."
+        : "Texture dimensions are unavailable. No assumed resolution is used; inspect source textures and reload."
+    );
+  }
+
+  add(
+    "material",
+    "Materials",
+    String(d.materialCount),
+    "good",
+    "Materials present in the loaded scene; loaders may provide defaults."
+  );
+  if (d.meshesWithoutMaterial > 0)
+    add(
+      "material",
+      "No Material",
+      `${d.meshesWithoutMaterial} meshes`,
+      "warning",
+      "Review whether a material is required for the intended appearance, then assign/export it if needed."
+    );
+  if (!input.textureReferencesVerified)
+    add(
+      "material",
+      "Source Materials",
+      "Not checked",
+      "unknown",
+      "OBJLoader does not read MTL files. Default viewer materials do not confirm the source material setup."
+    );
+  add(
+    "transform",
+    d.nonUniformScaleCount > 0 ? "Non-uniform Scale" : "Scale",
+    d.nonUniformScaleCount > 0 ? `${d.nonUniformScaleCount} objects` : "Uniform",
+    d.nonUniformScaleCount > 0 ? "warning" : "good",
+    "Non-uniform scale can be intentional. Check the target pipeline before applying transforms, especially on rigged models."
+  );
+  add(
+    "transform",
+    "Center Offset",
+    String(d.offCenterDistance),
+    d.offCenterDistance > 10 ? "warning" : "good",
+    "Bounding-box center distance from the scene origin in model units; not a pivot correctness test. Review placement only if unintended."
   );
 
-  // ── Material ──
-  items.push(item("material", "Materials", d.materialCount.toString(), "good"));
-
-  if (d.meshesWithoutMaterial > 0) {
-    items.push(
-      item(
-        "material",
-        "No Material",
-        `${d.meshesWithoutMaterial} meshes`,
-        d.meshesWithoutMaterial === input.meshCount ? "bad" : "warning",
-        "Meshes without assigned material"
-      )
-    );
-  }
-
-  // ── Transform ──
-  if (d.nonUniformScaleCount > 0) {
-    items.push(
-      item(
-        "transform",
-        "Non-uniform Scale",
-        `${d.nonUniformScaleCount} objects`,
-        "warning",
-        "Scale X/Y/Z should be equal"
-      )
-    );
-  } else {
-    items.push(item("transform", "Scale", "Uniform", "good"));
-  }
-
-  if (d.offCenterDistance > 1) {
-    items.push(
-      item(
-        "transform",
-        "Pivot Offset",
-        `${d.offCenterDistance}`,
-        d.offCenterDistance > 10 ? "warning" : "good",
-        "Distance from origin — may cause issues on import"
-      )
-    );
-  } else {
-    items.push(item("transform", "Pivot", "Centered", "good"));
-  }
-
-  // ── Group by category ──
-  const groups: ValidationGroup[] = CATEGORY_ORDER.map((cat) => ({
-    category: cat,
-    label: CATEGORY_LABELS[cat],
-    items: items.filter((i) => i.category === cat),
-  })).filter((g) => g.items.length > 0);
-
-  const overall = worst(...items.map((i) => i.severity));
-
-  return { overall, items, groups };
+  const groups: ValidationGroup[] = (Object.keys(CATEGORY_LABELS) as ValidationCategory[]).map(
+    (category) => ({
+      category,
+      label: CATEGORY_LABELS[category],
+      items: items.filter((item) => item.category === category),
+    })
+  );
+  return { overall: worstSeverity(items.map((item) => item.severity)), items, groups };
 }
 
 export function useAssetValidation(input: ValidationInput | null): ValidationResult | null {
-  return useMemo(() => {
-    if (!input) return null;
-    return validateAsset(input);
-  }, [input]);
+  return useMemo(() => (input ? validateAsset(input) : null), [input]);
 }

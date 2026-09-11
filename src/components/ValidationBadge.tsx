@@ -1,24 +1,15 @@
 import type { ValidationSeverity } from "../types/asset";
+import { VALIDATION_STATUS } from "../lib/validationStatus";
 
-interface ValidationBadgeProps {
-  severity: ValidationSeverity;
-}
-
-const BADGE_CONFIG: Record<ValidationSeverity, { label: string; color: string; bg: string }> = {
-  good: { label: "Good", color: "#4ade80", bg: "rgba(74, 222, 128, 0.2)" },
-  warning: { label: "Warning", color: "#fbbf24", bg: "rgba(251, 191, 36, 0.2)" },
-  bad: { label: "Bad", color: "#f87171", bg: "rgba(248, 113, 113, 0.2)" },
-};
-
-export function ValidationBadge({ severity }: ValidationBadgeProps) {
-  const config = BADGE_CONFIG[severity];
-
+export function ValidationBadge({ severity }: { severity: ValidationSeverity }) {
+  const status = VALIDATION_STATUS[severity];
   return (
     <span
       className={`validation-badge ${severity}`}
-      style={{ color: config.color, backgroundColor: config.bg }}
+      title={status.description}
+      style={{ color: status.color, backgroundColor: `${status.color}20` }}
     >
-      {config.label}
+      {status.label}
     </span>
   );
 }

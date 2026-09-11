@@ -745,3 +745,14 @@ kbd {
     margin-right: 0;
   }
 }
+
+.severity-unknown,
+.info-group-heading .unchecked-count {
+  color: var(--text-muted);
+}
+.validation-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 4px 14px;
+}

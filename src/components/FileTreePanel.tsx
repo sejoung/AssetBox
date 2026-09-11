@@ -1,3 +1,4 @@
+import { VALIDATION_STATUS } from "../lib/validationStatus";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { convertFilePath } from "./ModelLoader";
 import { Chevron, FileIcon } from "./FileTreeIcons";
@@ -119,7 +120,7 @@ const TreeRow = memo(function TreeRow({
       aria-expanded={isDir ? expanded : undefined}
       aria-level={row.depth + 1}
       data-testid="tree-row"
-      title={`${entry.path}${severity ? ` · ${severity === "good" ? "Good" : severity === "warning" ? "Warning" : "Issue"}` : ""}`}
+      title={`${entry.path}${severity ? ` · ${VALIDATION_STATUS[severity].label}` : ""}`}
       onClick={handleClick}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -214,7 +215,7 @@ const SearchRow = memo(function SearchRow({
       role="option"
       aria-selected={selected}
       data-testid="search-row"
-      title={`${entry.path}${severity ? ` · ${severity === "good" ? "Good" : severity === "warning" ? "Warning" : "Issue"}` : ""}`}
+      title={`${entry.path}${severity ? ` · ${VALIDATION_STATUS[severity].label}` : ""}`}
       onClick={() => onActivate(entry.path, false)}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -506,7 +507,7 @@ export function FileTreePanel({
                 style={{ color: "var(--text-secondary)" }}
               >
                 <span className="w-3">{onlyIssues ? "✓" : ""}</span>
-                Only show issues
+                Needs review
               </button>
 
               {recentFolders.length > 0 && (
@@ -603,7 +604,7 @@ export function FileTreePanel({
               onClick={() => onOnlyIssuesChange(false)}
               title="Show files with any validation result"
             >
-              Issues only ×
+              Needs review ×
             </button>
           )}
           {search.active && (
@@ -649,7 +650,7 @@ export function FileTreePanel({
                 ? "Searching…"
                 : "No matches."
               : onlyIssues
-                ? "No issues found yet."
+                ? "No review flags yet. Run Validate all to inspect this folder."
                 : tree.modelsOnly
                   ? "No 3D files here. Try showing all file types or opening a subfolder."
                   : "This folder is empty."}
@@ -735,6 +736,11 @@ export function FileTreePanel({
             {issues.warning > 0 && (
               <span className="shrink-0" style={{ color: SEVERITY_COLORS.warning }}>
                 {issues.warning} ⚠
+              </span>
+            )}
+            {issues.unknown > 0 && (
+              <span className="shrink-0" title="Incomplete inspections">
+                {issues.unknown} ?
               </span>
             )}
             {issues.bad > 0 && (

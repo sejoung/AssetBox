@@ -69,7 +69,7 @@ AssetBox 데스크톱 앱의 화면을 추가하거나 수정할 때 사용하�
 
 일부 상태 표현은 별도 팔레트를 사용하고 있습니다. 기존 화면을 수정할 때 이 차이를 확인하고, 새 컴포넌트에 값을 복사하지 않습니다.
 
-- [ValidationBadge](../src/components/ValidationBadge.tsx)와 [파일 목록 등급 색](../src/lib/fileTree.ts)은 Good `#4ade80`, Warning `#fbbf24`, Bad `#f87171`을 사용합니다. 등급 배지는 `ValidationBadge`를 재사용합니다.
+- [ValidationBadge](../src/components/ValidationBadge.tsx)와 [파일 목록 등급 색](../src/lib/fileTree.ts)은 Checked `#4ade80`, Review `#fbbf24`, Needs attention `#f87171`, Incomplete `#9ca8bb`을 사용합니다. 상태 이름·색은 [validationStatus.ts](../src/lib/validationStatus.ts)를 공유하고, 배지는 `ValidationBadge`를 재사용합니다. 확인 불가를 성공색으로 표시하지 않습니다. 판정 의미는 [검사 가이드](VALIDATION_GUIDE.md)를 따릅니다.
 - [ReportButton](../src/components/ReportButton.tsx)과 [ThumbnailButton](../src/components/ThumbnailButton.tsx)의 저장 성공·실패 상태도 위의 밝은 채움색을 사용하며, 글자는 어두운 `#111827`입니다.
 - Three.js의 노멀·UV·밀도 시각화 색은 진단 의미를 전달하는 색입니다. UI 강조색 변경만을 이유로 함께 바꾸지 않습니다.
 - [overlayStyle.ts](../src/lib/overlayStyle.ts)의 `BG_COLORS`는 캔버스 배경용입니다. `dark`, `neutral`, `light` 전환은 앱 전체 테마를 바꾸지 않습니다.

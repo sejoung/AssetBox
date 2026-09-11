@@ -97,13 +97,12 @@ Two drag-and-drop systems operate simultaneously:
 - Green wireframe line overlay
 - Useful for inspecting topology structure
 
-### 4.3 Normals (Normal Inspection)
-- Visualizes normal direction as colored points at each vertex
-- **Blue points (small):** Correct normals
-- **Red points (large):** Flipped normals
-- Background mesh replaced with dark transparent material for readability
-- When flipped normals exist, a "Flipped Normals (count)" focus button appears at bottom center
-- Clicking the button automatically moves the camera to the center of flipped normals
+### 4.3 Normals
+
+- Red points mark vertices belonging to triangles whose winding disagrees with their vertex normals.
+- Blue points are not marked as mismatches; this does not prove outward orientation.
+- `Normal mismatches (N vertices)` focuses the marked region.
+- The inspector counts triangles, while the focus button counts vertices.
 
 ### 4.4 Normal Map
 - Custom shader visualizes vertex normal directions as RGB colors
@@ -153,61 +152,14 @@ Two drag-and-drop systems operate simultaneously:
 
 ## 6. Validation System
 
-Validation is automatically performed across 6 categories when a model is loaded.
+Loaded models are inspected across Geometry, Topology, UV, Texture, Material, and Scale / Transform. The [validation guide (Korean)](VALIDATION_GUIDE.md) documents thresholds, remediation, and measurement limits.
 
-### 6.1 Geometry
+- **Checked:** No flags in the checks performed.
+- **Review:** A reference budget or structure needs review against the intended use.
+- **Needs attention:** A resource load failure, missing required UV channel, or high degenerate-face ratio was detected.
+- **Incomplete:** A measurement or source reference could not be checked. This is not a pass.
 
-| Metric | Good | Warning | Bad |
-|--------|------|---------|-----|
-| Triangles (Tris) | < 100K | < 500K | >= 500K |
-| Vertices (Verts) | < 100K | < 300K | >= 300K |
-| Mesh Count | < 50 | < 100 | >= 100 |
-| File Size | < 50MB | < 100MB | >= 100MB |
-| Degenerate Triangles | < 1% | < 5% | >= 5% |
-| Bounding Box | Info display (X x Y x Z) | | |
-
-### 6.2 Topology
-
-| Metric | Good | Warning | Bad |
-|--------|------|---------|-----|
-| Non-Manifold Edges | 0 | <= 50 | > 50 |
-| Open Edges | 0 (watertight) | Exists | |
-| Flipped Normals | None | Exists | > 10% |
-
-### 6.3 UV
-
-| Metric | Good | Warning | Bad |
-|--------|------|---------|-----|
-| UV Coverage | All meshes have UVs | | Meshes without UVs |
-| UV Channels | 1-2 channels | | |
-
-### 6.4 Texture
-
-| Metric | Good | Warning | Bad |
-|--------|------|---------|-----|
-| Texture Count | Info display | | |
-| Missing Textures | 0 | 1-2 | >= 3 |
-| Max Resolution | < 4096px | < 8192px | >= 8192px |
-
-### 6.5 Material
-
-| Metric | Good | Warning | Bad |
-|--------|------|---------|-----|
-| Material Count | Info display | | |
-| Unassigned Materials | None | Exists | |
-
-### 6.6 Scale/Transform
-
-| Metric | Good | Warning | Bad |
-|--------|------|---------|-----|
-| Non-Uniform Scale | X=Y=Z | Mismatch | |
-| Pivot Offset | < 1 unit | > 10 units | |
-
-### Overall Verdict
-- **Good** (green): All metrics pass
-- **Warning** (yellow): Some items need attention
-- **Bad** (red): Serious issues found
-- Overall verdict follows the worst severity across all items
+Interactive and batch validation share the same pipeline. Overall priority is Needs attention → Review → Incomplete → Checked. Incomplete checks remain visible in the details and report even when another flag takes priority.
 
 ---
 
@@ -231,7 +183,7 @@ Validation is automatically performed across 6 categories when a model is loaded
 - Matches keywords after separator (`_`, `-`, `.`) at the end of filename (before extension)
 - Pattern: `[_\-.]<type>$`
 - Only recognized image extensions are processed
-- Missing texture detection: checks for basecolor, normal, roughness when external textures exist
+- Filename matching discovers nearby files only. Actual resource failures are collected by the loader.
 
 ---
 

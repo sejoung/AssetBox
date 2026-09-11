@@ -266,7 +266,7 @@ describe("FileTreePanel", () => {
       fireEvent.click(screen.getByText("3D files only"));
       expect(setModelsOnly).toHaveBeenCalledWith(false);
 
-      fireEvent.click(screen.getByText("Only show issues"));
+      fireEvent.click(screen.getByText("Needs review"));
       expect(onOnlyIssuesChange).toHaveBeenCalledWith(true);
     });
 

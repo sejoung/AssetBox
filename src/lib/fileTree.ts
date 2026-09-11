@@ -1,4 +1,5 @@
 import type { DirEntry } from "../hooks/useTauriCommand";
+import { VALIDATION_STATUS } from "./validationStatus";
 import type { ValidationSeverity } from "../types/asset";
 
 /** Extensions the viewer can open. Kept in sync with the Rust side. */
@@ -259,9 +260,10 @@ export function treeStats(rows: FlatRow[]): TreeStats {
 }
 
 export const SEVERITY_COLORS: Record<ValidationSeverity, string> = {
-  good: "#4ade80",
-  warning: "#fbbf24",
-  bad: "#f87171",
+  good: VALIDATION_STATUS.good.color,
+  warning: VALIDATION_STATUS.warning.color,
+  bad: VALIDATION_STATUS.bad.color,
+  unknown: VALIDATION_STATUS.unknown.color,
 };
 
 // ── Row navigation ──
@@ -331,13 +333,14 @@ export function filterIssues(
   return rows.filter((row) => {
     if (row.node.entry.isDir) return true;
     const severity = severityByPath[row.path];
-    return severity === "warning" || severity === "bad";
+    return severity === "warning" || severity === "bad" || severity === "unknown";
   });
 }
 
 export interface IssueCounts {
   warning: number;
   bad: number;
+  unknown: number;
 }
 
 export function countIssues(
@@ -346,10 +349,12 @@ export function countIssues(
 ): IssueCounts {
   let warning = 0;
   let bad = 0;
+  let unknown = 0;
   for (const row of rows) {
     const severity = severityByPath[row.path];
     if (severity === "warning") warning++;
     else if (severity === "bad") bad++;
+    else if (severity === "unknown") unknown++;
   }
-  return { warning, bad };
+  return { warning, bad, unknown };
 }

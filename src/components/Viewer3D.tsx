@@ -10,6 +10,7 @@ import {
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Grid, Center } from "@react-three/drei";
 import * as THREE from "three";
+import { analyzeNormalConsistency } from "../lib/geometryDiagnostics";
 import { loadModel, type LoadedModel } from "./ModelLoader";
 import { disposeScene } from "../lib/disposeScene";
 import type { RetopoDiagInfo } from "../types/asset";
@@ -70,54 +71,7 @@ function NormalsHelper({
       const norm = geo.attributes.normal;
       if (!pos || !norm) return;
 
-      // Compute face normals to detect flipped ones
-      const index = geo.index;
-      const triCount = index ? index.count / 3 : pos.count / 3;
-      const flippedVertSet = new Set<number>();
-
-      const vA = new THREE.Vector3(),
-        vB = new THREE.Vector3(),
-        vC = new THREE.Vector3();
-      const e1 = new THREE.Vector3(),
-        e2 = new THREE.Vector3();
-      const faceN = new THREE.Vector3(),
-        avgN = new THREE.Vector3();
-      const nA = new THREE.Vector3(),
-        nB = new THREE.Vector3(),
-        nC = new THREE.Vector3();
-
-      for (let i = 0; i < triCount; i++) {
-        let a: number, b: number, c: number;
-        if (index) {
-          a = index.getX(i * 3);
-          b = index.getX(i * 3 + 1);
-          c = index.getX(i * 3 + 2);
-        } else {
-          a = i * 3;
-          b = i * 3 + 1;
-          c = i * 3 + 2;
-        }
-
-        vA.fromBufferAttribute(pos, a);
-        vB.fromBufferAttribute(pos, b);
-        vC.fromBufferAttribute(pos, c);
-        e1.subVectors(vB, vA);
-        e2.subVectors(vC, vA);
-        faceN.crossVectors(e1, e2);
-        if (faceN.lengthSq() < 1e-8) continue;
-
-        nA.fromBufferAttribute(norm, a);
-        nB.fromBufferAttribute(norm, b);
-        nC.fromBufferAttribute(norm, c);
-        avgN.addVectors(nA, nB).add(nC);
-        if (avgN.lengthSq() < 1e-8) continue;
-
-        if (faceN.dot(avgN) < 0) {
-          flippedVertSet.add(a);
-          flippedVertSet.add(b);
-          flippedVertSet.add(c);
-        }
-      }
+      const flippedVertSet = analyzeNormalConsistency(geo).vertices;
 
       // Convert each mesh into model-local space so nested part transforms stay aligned.
       const localMatrix = modelWorldInverse.clone().multiply(child.matrixWorld);
@@ -964,7 +918,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
               <circle cx="12" cy="12" r="6" />
               <circle cx="12" cy="12" r="2" />
             </svg>
-            Flipped Normals ({flippedInfo.count})
+            Normal mismatches ({flippedInfo.count} vertices)
           </button>
         )}
 
@@ -997,7 +951,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
                 }}
               />
               <span style={{ color: "#eaeaea", fontSize: 14, fontWeight: 700 }}>
-                {retopoInfo.needsRetopo ? "Retopology Recommended" : "Topology OK"}
+                {retopoInfo.needsRetopo ? "Review triangle distribution" : "No density flags"}
               </span>
             </div>
 

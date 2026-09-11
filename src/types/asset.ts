@@ -32,17 +32,18 @@ export interface RetopoDiagInfo {
 export interface AssetInfo {
   fileName: string;
   filePath: string;
-  fileSize: number;
+  fileSize: number | null;
   format: "fbx" | "glb" | "gltf" | "obj";
   polyCount: number;
   vertexCount: number;
   meshCount: number;
   textures: TextureInfo[];
-  missingTextures: TextureType[];
+  /** Resource URLs reported as failed by the model loader; not filename guesses. */
+  missingTextures: string[];
   retopoDiag?: RetopoDiagInfo;
 }
 
-export type ValidationSeverity = "good" | "warning" | "bad";
+export type ValidationSeverity = "good" | "warning" | "bad" | "unknown";
 
 export type ValidationCategory =
   | "geometry"

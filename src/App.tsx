@@ -102,7 +102,9 @@ function App() {
               ...tree.search,
               results: tree.search.results.filter(
                 (entry) =>
-                  severityByPath[entry.path] === "warning" || severityByPath[entry.path] === "bad"
+                  severityByPath[entry.path] === "warning" ||
+                  severityByPath[entry.path] === "bad" ||
+                  severityByPath[entry.path] === "unknown"
               ),
             },
           }

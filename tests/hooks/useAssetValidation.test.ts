@@ -6,7 +6,9 @@ const baseDiagnostics = {
   boundingBox: { x: 1, y: 2, z: 1 },
   nonManifoldEdgeCount: 0,
   openEdgeCount: 0,
-  flippedNormalTriCount: 0,
+  normalMismatchTriCount: 0,
+  uncheckedNormalTriCount: 0,
+  meshesMissingRequiredUV: 0,
   meshesWithoutUV: 0,
   uvChannelCounts: [1],
   materialCount: 1,
@@ -21,8 +23,10 @@ const baseInput: ValidationInput = {
   meshCount: 3,
   fileSize: 1024 * 1024,
   textureCount: 3,
-  missingTextureCount: 0,
+  failedResourceCount: 0,
   maxTextureRes: 2048,
+  textureReferencesVerified: true,
+  unknownTextureResolutions: 0,
   diagnostics: baseDiagnostics,
 };
 
@@ -50,15 +54,15 @@ describe("validateAsset", () => {
     expect(item?.severity).toBe("warning");
   });
 
-  it("bad for very high poly count", () => {
+  it("reviews high counts against a target budget instead of rejecting the asset", () => {
     const result = validateAsset({ ...baseInput, polyCount: 600_000, vertexCount: 400_000 });
-    expect(result.overall).toBe("bad");
+    expect(result.overall).toBe("warning");
   });
 
-  it("bad on very large file size", () => {
+  it("reviews large files against a target budget", () => {
     const result = validateAsset({ ...baseInput, fileSize: 200 * 1024 * 1024 });
     const item = result.items.find((i) => i.label === "File Size");
-    expect(item?.severity).toBe("bad");
+    expect(item?.severity).toBe("warning");
   });
 
   it("shows bounding box dimensions", () => {
@@ -77,7 +81,7 @@ describe("validateAsset", () => {
   it("shows clean when no non-manifold", () => {
     const result = validateAsset(baseInput);
     const item = result.items.find((i) => i.label === "Non-manifold");
-    expect(item?.value).toBe("Clean");
+    expect(item?.value).toBe("None detected");
     expect(item?.severity).toBe("good");
   });
 
@@ -90,7 +94,7 @@ describe("validateAsset", () => {
   it("shows watertight when no open edges", () => {
     const result = validateAsset(baseInput);
     const item = result.items.find((i) => i.label === "Open Edges");
-    expect(item?.value).toBe("Watertight");
+    expect(item?.value).toBe("None detected");
   });
 
   it("warns on open edges", () => {
@@ -100,8 +104,8 @@ describe("validateAsset", () => {
   });
 
   it("warns on flipped normals", () => {
-    const result = validateAsset(withDiag({ flippedNormalTriCount: 50 }));
-    const item = result.items.find((i) => i.label === "Flipped Normals");
+    const result = validateAsset(withDiag({ normalMismatchTriCount: 50 }));
+    const item = result.items.find((i) => i.label === "Normal Consistency");
     expect(item?.severity).toBe("warning");
   });
 
@@ -119,10 +123,10 @@ describe("validateAsset", () => {
   });
 
   // Texture
-  it("warns on missing textures", () => {
-    const result = validateAsset({ ...baseInput, missingTextureCount: 2 });
-    const item = result.items.find((i) => i.label === "Missing");
-    expect(item?.severity).toBe("warning");
+  it("flags confirmed resource load failures", () => {
+    const result = validateAsset({ ...baseInput, failedResourceCount: 2 });
+    const item = result.items.find((i) => i.label === "Failed Resources");
+    expect(item?.severity).toBe("bad");
   });
 
   // Material
@@ -147,13 +151,70 @@ describe("validateAsset", () => {
 
   it("shows centered pivot", () => {
     const result = validateAsset(baseInput);
-    const item = result.items.find((i) => i.label === "Pivot");
-    expect(item?.value).toBe("Centered");
+    const item = result.items.find((i) => i.label === "Center Offset");
+    expect(item?.value).toBe("0");
   });
 
   it("warns on off-center pivot", () => {
     const result = validateAsset(withDiag({ offCenterDistance: 25 }));
-    const item = result.items.find((i) => i.label === "Pivot Offset");
+    const item = result.items.find((i) => i.label === "Center Offset");
     expect(item?.severity).toBe("warning");
+  });
+});
+
+describe("evidence and uncertainty", () => {
+  const get = (input: ValidationInput, label: string) =>
+    validateAsset(input).items.find((item) => item.label === label)!;
+  it("keeps unknown size and unknown resolution from passing", () => {
+    const input = {
+      ...baseInput,
+      fileSize: null,
+      maxTextureRes: null,
+      unknownTextureResolutions: 1,
+    };
+    expect(get(input, "File Size")).toMatchObject({ value: "Unknown", severity: "unknown" });
+    expect(get(input, "Max Resolution")).toMatchObject({ value: "Unknown", severity: "unknown" });
+    expect(validateAsset(input).overall).toBe("unknown");
+  });
+  it("distinguishes no bound textures from unresolved material references", () => {
+    const input = { ...baseInput, textureCount: 0, maxTextureRes: null };
+    expect(get(input, "Max Resolution")).toMatchObject({ value: "Not used", severity: "good" });
+    expect(get({ ...input, textureReferencesVerified: false }, "Max Resolution").severity).toBe(
+      "unknown"
+    );
+  });
+  it("labels partial measurements and retains known high-resolution warnings", () => {
+    const input = { ...baseInput, maxTextureRes: 8192, unknownTextureResolutions: 1 };
+    expect(get(input, "Max Resolution")).toMatchObject({
+      value: "8192px (partial)",
+      severity: "warning",
+    });
+    expect(get(input, "Texture Inspection").severity).toBe("unknown");
+  });
+  it("does not mark a texture-free material bad just because every mesh lacks UVs", () => {
+    expect(get(withDiag({ meshesWithoutUV: baseInput.meshCount }), "No UVs").severity).toBe(
+      "warning"
+    );
+    expect(get(withDiag({ meshesMissingRequiredUV: 1 }), "Missing Required UVs").severity).toBe(
+      "bad"
+    );
+  });
+  it("does not treat many intentional boundary edges as a mandatory failure", () => {
+    expect(get(withDiag({ openEdgeCount: 1000 }), "Open Edges").severity).toBe("warning");
+  });
+  it("marks missing normals as unknown rather than no mismatches", () => {
+    expect(get(withDiag({ uncheckedNormalTriCount: 10 }), "Normal Consistency").severity).toBe(
+      "unknown"
+    );
+  });
+  it("does not suppress confirmed problems when other checks are incomplete", () => {
+    expect(validateAsset({ ...baseInput, failedResourceCount: 1, fileSize: null }).overall).toBe(
+      "bad"
+    );
+  });
+  it.each([100_000, 100_001])("uses exact reference budget boundaries at %i triangles", (count) => {
+    expect(get({ ...baseInput, polyCount: count }, "Tris").severity).toBe(
+      count === 100_000 ? "good" : "warning"
+    );
   });
 });

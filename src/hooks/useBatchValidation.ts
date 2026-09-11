@@ -77,6 +77,7 @@ export function useBatchValidation(onResult: (path: string, severity: Validation
             disposeScene(model.scene);
           }
         } catch (err) {
+          onResult(path, "unknown");
           log.warn(`Batch validation skipped ${path}:`, err);
         }
 
