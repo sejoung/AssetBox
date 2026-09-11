@@ -31,19 +31,22 @@ export function ReportButton({ asset, validation }: ReportButtonProps) {
 
   const config = {
     idle: { label: "Report", bg: OVERLAY_BG, borderStyle: OVERLAY_BORDER },
-    saving: { label: "...", bg: OVERLAY_BG, borderStyle: OVERLAY_BORDER },
+    saving: { label: "Saving…", bg: OVERLAY_BG, borderStyle: OVERLAY_BORDER },
     done: { label: "Saved!", bg: "#4ade80", borderStyle: "none" },
     error: { label: "Failed", bg: "#f87171", borderStyle: "none" },
   }[status];
 
   return (
     <button
+      aria-live="polite"
+      aria-busy={status === "saving"}
+      title="Save an HTML inspection report beside the model"
       onClick={handleGenerate}
       disabled={!asset || !validation || status === "saving"}
-      className="flex items-center justify-center gap-2.5 min-w-[110px] px-6 py-3.5 rounded-xl text-sm font-semibold leading-relaxed whitespace-nowrap transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:brightness-110"
+      className="ui-button export-button"
       style={{
         backgroundColor: config.bg,
-        color: "white",
+        color: status === "done" || status === "error" ? "#111827" : "var(--text-primary)",
         border: config.borderStyle,
         backdropFilter: OVERLAY_BACKDROP,
       }}

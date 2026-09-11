@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { InfoPanel } from "../../src/components/InfoPanel";
 import type { AssetInfo, ValidationResult } from "../../src/types/asset";
 import { createRef } from "react";
@@ -88,5 +88,24 @@ describe("InfoPanel", () => {
   it("shows nothing when no asset", () => {
     const { container } = render(<InfoPanel asset={null} validation={null} {...defaultProps} />);
     expect(container.firstChild).toBeNull();
+  });
+  it("shows missing textures even when no texture files were found", () => {
+    render(
+      <InfoPanel
+        asset={{ ...mockAssetInfo, textures: [] }}
+        validation={mockValidation}
+        {...defaultProps}
+      />
+    );
+    expect(screen.getByText("Missing: roughness")).toBeInTheDocument();
+  });
+
+  it("can collapse and restore the inspector", () => {
+    render(<InfoPanel asset={mockAssetInfo} validation={mockValidation} {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Asset information" }));
+    expect(screen.queryByText("Geometry")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Info/ })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: /Info/ }));
+    expect(screen.getByText("Geometry")).toBeInTheDocument();
   });
 });

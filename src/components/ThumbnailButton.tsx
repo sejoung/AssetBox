@@ -31,18 +31,25 @@ export function ThumbnailButton({ viewerRef, assetPath, disabled }: ThumbnailBut
   }, [viewerRef, assetPath]);
 
   const config = {
-    idle: { label: "Thumbnail", bg: "#e94560" },
-    saving: { label: "...", bg: "#e94560" },
+    idle: { label: "Thumbnail", bg: "var(--accent-solid)" },
+    saving: { label: "Saving…", bg: "var(--accent-solid)" },
     done: { label: "Saved!", bg: "#4ade80" },
     error: { label: "Failed", bg: "#f87171" },
   }[status];
 
   return (
     <button
+      aria-live="polite"
+      aria-busy={status === "saving"}
+      title="Save a PNG thumbnail beside the model"
       onClick={handleGenerate}
       disabled={disabled || status === "saving" || !assetPath}
-      className="flex items-center justify-center gap-2.5 min-w-[130px] px-6 py-3.5 rounded-xl text-sm font-semibold leading-relaxed whitespace-nowrap transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:brightness-110"
-      style={{ backgroundColor: config.bg, color: "white", backdropFilter: OVERLAY_BACKDROP }}
+      className="ui-button export-button"
+      style={{
+        backgroundColor: config.bg,
+        color: status === "done" || status === "error" ? "#111827" : "var(--text-primary)",
+        backdropFilter: OVERLAY_BACKDROP,
+      }}
     >
       {status === "idle" && (
         <svg

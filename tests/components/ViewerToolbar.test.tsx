@@ -24,15 +24,10 @@ describe("ViewerToolbar", () => {
     expect(screen.getByText("UV")).toBeInTheDocument();
   });
 
-  it("active button has accent color #e94560 styling", () => {
+  it("exposes the selected view mode to assistive technology", () => {
     render(<ViewerToolbar {...defaultProps} viewMode="wireframe" />);
-    const wireBtn = screen.getByText("Wire").closest("button")!;
-    // Browser normalizes hex to rgb
-    expect(wireBtn.style.color).toBe("rgb(233, 69, 96)");
-    expect(wireBtn.style.border).toContain("rgb(233, 69, 96)");
-
-    const solidBtn = screen.getByText("Solid").closest("button")!;
-    expect(solidBtn.style.color).not.toBe("rgb(233, 69, 96)");
+    expect(screen.getByRole("button", { name: /Wire/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Solid/ })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("calls onViewModeChange when a view mode button is clicked", () => {

@@ -259,52 +259,18 @@ Validation is automatically performed across 6 categories when a model is loaded
 
 ## 9. UI Layout
 
-### Layout Overview
+Shared colors, typography, spacing, responsive layout, and change guidelines are documented in the [design guide (Korean)](DESIGN_GUIDE.md).
 
-```
-+----------------------------------------------+
-| [FBX] filename.fbx [Good]     |  Info Panel  |
-|                                | (collapsible)|
-|                                |  - Geometry  |
-|                                |  - Topology  |
-|         3D Viewport            |  - UV        |
-|      (OrbitControls)           |  - Texture   |
-|                                |  - Material  |
-|                                |  - Transform |
-|                                |              |
-| [Solid][Wire][Normals]...      | [Report][Thumb]
-| [Normal Map][UV][Retopo] [ooo] |              |
-+----------------------------------------------+
-```
+| Area | Contents |
+| --- | --- |
+| App header | AssetBox, file browser toggle, Open folder |
+| Left Files panel | Folder navigation, search, filters, file list, batch validation |
+| Center Preview | Current filename, 3D canvas, six view modes, three backgrounds, Fit model |
+| Right Asset information | File summary and verdict, validation groups, textures, Report, Thumbnail, Logs |
 
-### Top Left
-- File format badge (FBX, GLB, etc.)
-- Filename (truncated if too long)
-- Validation status badge (Good/Warning/Bad)
+The file list and inspection details scroll independently. Preview controls and export buttons stay within their respective areas. Collapsing the inspector makes more room for the model. Previous inspection details and export buttons are hidden while inspecting a newly selected file.
 
-### Right Panel
-- Collapsible detailed info panel
-- Validation results grouped by category
-- Color-coded per item
-- Texture file list (type + filename)
-- Scrollable
-
-### Bottom Left
-- View mode toggle buttons (6 modes)
-- Background color picker (3 options: dark, neutral, light)
-- Responsive: auto-wraps when window is narrow
-
-### Bottom Right
-- Report generation button
-- Thumbnail save button
-
-### Style Theme
-- **Background:** Semi-transparent dark blue (`rgba(16, 24, 48, 0.94)`)
-- **Backdrop filter:** `blur(20px)` (frosted glass effect)
-- **Accent color:** `#e94560` (coral red)
-- **Success:** `#4ade80` (green)
-- **Warning:** `#fbbf24` (yellow)
-- **Error:** `#f87171` (red)
+The default window is 1280 × 800px; the minimum is 900 × 600px. At window widths of 1100px or less, the inspector narrows and secondary shortcut badges are hidden. When the Preview container is 570px wide or less, view modes use three columns and two rows.
 
 ---
 

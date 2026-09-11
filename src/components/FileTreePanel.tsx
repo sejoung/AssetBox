@@ -19,14 +19,14 @@ import type { BatchProgress } from "../hooks/useBatchValidation";
 import type { ValidationSeverity } from "../types/asset";
 import * as log from "../lib/logger";
 
-const ROW_HEIGHT = 28;
+const ROW_HEIGHT = 34;
 const OVERSCAN = 10;
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 560;
 const INDENT = 14;
 
-const PANEL_BG = "#0d1424";
-const BORDER = "1px solid rgba(60, 60, 100, 0.45)";
+const PANEL_BG = "var(--bg-secondary)";
+const BORDER = "1px solid var(--border)";
 
 export interface FileTreePanelProps {
   tree: FileTree;
@@ -74,8 +74,9 @@ function ToolbarButton({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="flex items-center justify-center w-7 h-7 rounded cursor-pointer transition-colors hover:bg-white/10 disabled:opacity-25 disabled:cursor-default"
-      style={{ color: active ? "#e94560" : "#9a9ab0" }}
+      aria-pressed={active}
+      className="flex items-center justify-center w-7 h-7 rounded cursor-pointer transition-colors hover:bg-white/10 disabled:opacity-40 disabled:cursor-default"
+      style={{ color: active ? "var(--accent)" : "var(--text-secondary)" }}
     >
       {children}
     </button>
@@ -116,8 +117,9 @@ const TreeRow = memo(function TreeRow({
       role="treeitem"
       aria-selected={selected}
       aria-expanded={isDir ? expanded : undefined}
+      aria-level={row.depth + 1}
       data-testid="tree-row"
-      title={entry.path}
+      title={`${entry.path}${severity ? ` · ${severity === "good" ? "Good" : severity === "warning" ? "Warning" : "Issue"}` : ""}`}
       onClick={handleClick}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -128,13 +130,13 @@ const TreeRow = memo(function TreeRow({
         height: ROW_HEIGHT,
         paddingLeft: 6,
         backgroundColor: selected
-          ? "rgba(233, 69, 96, 0.20)"
+          ? "var(--accent-soft)"
           : revealed
             ? "rgba(255, 255, 255, 0.05)"
             : undefined,
-        outline: focused ? "2px solid rgba(233, 69, 96, 0.9)" : undefined,
+        outline: focused ? "2px solid var(--accent)" : undefined,
         outlineOffset: -2,
-        color: selected ? "#f0f0f5" : "#c2c2d0",
+        color: selected ? "var(--text-primary)" : "var(--text-secondary)",
       }}
     >
       {severity && (
@@ -212,7 +214,7 @@ const SearchRow = memo(function SearchRow({
       role="option"
       aria-selected={selected}
       data-testid="search-row"
-      title={entry.path}
+      title={`${entry.path}${severity ? ` · ${severity === "good" ? "Good" : severity === "warning" ? "Warning" : "Issue"}` : ""}`}
       onClick={() => onActivate(entry.path, false)}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -221,10 +223,10 @@ const SearchRow = memo(function SearchRow({
       className="group relative flex items-center gap-2 px-2 cursor-pointer select-none text-body whitespace-nowrap hover:bg-white/[0.06]"
       style={{
         height: ROW_HEIGHT,
-        backgroundColor: selected ? "rgba(233, 69, 96, 0.20)" : undefined,
-        outline: focused ? "2px solid rgba(233, 69, 96, 0.9)" : undefined,
+        backgroundColor: selected ? "var(--accent-soft)" : undefined,
+        outline: focused ? "2px solid var(--accent)" : undefined,
         outlineOffset: -2,
-        color: selected ? "#f0f0f5" : "#c2c2d0",
+        color: selected ? "var(--text-primary)" : "var(--text-secondary)",
       }}
     >
       {severity && (
@@ -234,7 +236,7 @@ const SearchRow = memo(function SearchRow({
         />
       )}
       <FileIcon name={entry.name} kind={entry.kind} isDir={false} />
-      <span className="truncate shrink-0">{entry.name}</span>
+      <span className="truncate min-w-0 flex-1">{entry.name}</span>
       {relative && (
         <span className="truncate text-meta" style={{ color: "var(--text-muted)" }}>
           {relative}
@@ -262,7 +264,9 @@ export function FileTreePanel({
   onValidateAll,
   onCancelBatch,
 }: FileTreePanelProps) {
-  const [width, setWidth] = useState(() => loadSession().width);
+  const [width, setWidth] = useState(() =>
+    Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, loadSession().width))
+  );
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -335,12 +339,24 @@ export function FileTreePanel({
       setMenuOpen(false);
       setContextTarget(null);
     };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
     window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [menuOpen, contextTarget]);
 
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = 0;
+    setScrollTop(0);
+  }, [location, search.query, onlyIssues, tree.modelsOnly, tree.sort]);
+
   const total = search.active ? search.results.length : rows.length;
-  const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const first = Math.max(0, Math.min(total - 1, Math.floor(scrollTop / ROW_HEIGHT)) - OVERSCAN);
   const last = Math.min(total, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN);
 
   const handleReveal = useCallback((path: string) => {
@@ -354,11 +370,16 @@ export function FileTreePanel({
   return (
     <aside
       data-testid="file-tree"
-      className="relative shrink-0 flex flex-col h-full"
+      className="file-panel relative shrink-0 flex flex-col h-full"
+      aria-label="Files"
       style={{ width, backgroundColor: PANEL_BG, borderRight: BORDER }}
     >
+      <div className="file-panel-heading">
+        <h2>Files</h2>
+        <span>Asset library</span>
+      </div>
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-1.5 py-1" style={{ borderBottom: BORDER }}>
+      <div className="file-toolbar flex items-center" style={{ borderBottom: BORDER }}>
         <ToolbarButton label="Open folder" onClick={onOpenFolder}>
           <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
@@ -439,8 +460,8 @@ export function FileTreePanel({
           {menuOpen && (
             <div
               onClick={(event) => event.stopPropagation()}
-              className="absolute right-0 top-full mt-1 z-40 rounded-lg py-1 min-w-[220px] text-body"
-              style={{ backgroundColor: "#16213e", border: BORDER }}
+              className="file-popover absolute right-0 top-full mt-1 z-40 rounded-lg py-1 min-w-[220px] text-body"
+              style={{ backgroundColor: "var(--bg-panel)", border: BORDER }}
             >
               <p
                 className="px-3 py-1 text-label font-semibold uppercase tracking-wider"
@@ -457,9 +478,10 @@ export function FileTreePanel({
               ).map(([mode, label]) => (
                 <button
                   key={mode}
+                  aria-pressed={tree.sort === mode}
                   onClick={() => tree.setSort(mode)}
                   className="flex items-center gap-2 w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-                  style={{ color: "#c2c2d0" }}
+                  style={{ color: "var(--text-secondary)" }}
                 >
                   <span className="w-3">{tree.sort === mode ? "✓" : ""}</span>
                   {label}
@@ -469,17 +491,19 @@ export function FileTreePanel({
               <div className="my-1" style={{ borderTop: BORDER }} />
 
               <button
+                aria-pressed={tree.modelsOnly}
                 onClick={() => tree.setModelsOnly(!tree.modelsOnly)}
                 className="flex items-center gap-2 w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-                style={{ color: "#c2c2d0" }}
+                style={{ color: "var(--text-secondary)" }}
               >
                 <span className="w-3">{tree.modelsOnly ? "✓" : ""}</span>
                 3D files only
               </button>
               <button
+                aria-pressed={onlyIssues}
                 onClick={() => onOnlyIssuesChange(!onlyIssues)}
                 className="flex items-center gap-2 w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-                style={{ color: "#c2c2d0" }}
+                style={{ color: "var(--text-secondary)" }}
               >
                 <span className="w-3">{onlyIssues ? "✓" : ""}</span>
                 Only show issues
@@ -500,7 +524,7 @@ export function FileTreePanel({
                       onClick={() => void tree.navigate(folder)}
                       title={folder}
                       className="block w-full text-left px-3 py-1.5 truncate cursor-pointer hover:bg-white/10"
-                      style={{ color: "#c2c2d0" }}
+                      style={{ color: "var(--text-secondary)" }}
                     >
                       {baseName(folder)}
                     </button>
@@ -547,24 +571,57 @@ export function FileTreePanel({
             value={search.query}
             onChange={(event) => search.setQuery(event.target.value)}
             onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                listRef.current?.focus();
+                const first = search.active ? search.results[0] : rows[0]?.node.entry;
+                if (first) onActivate(first.path, first.isDir);
+                return;
+              }
               if (event.key === "Escape") {
                 search.setQuery("");
                 onSearchOpenChange(false);
               }
             }}
+            aria-label="Search this folder"
             placeholder="Search this folder…"
-            className="w-full px-2 py-1.5 rounded text-body outline-none"
+            className="file-search w-full px-2 py-1.5 rounded text-body"
             style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#e0e0ea" }}
           />
         </div>
       )}
 
+      {location && (onlyIssues || tree.modelsOnly || search.active) && (
+        <div className="filter-summary">
+          {tree.modelsOnly && (
+            <button onClick={() => tree.setModelsOnly(false)} title="Show all file types">
+              3D files ×
+            </button>
+          )}
+          {onlyIssues && (
+            <button
+              onClick={() => onOnlyIssuesChange(false)}
+              title="Show files with any validation result"
+            >
+              Issues only ×
+            </button>
+          )}
+          {search.active && (
+            <span role="status">
+              {search.searching ? "Searching…" : `${search.results.length} results`}
+            </span>
+          )}
+        </div>
+      )}
       {/* Rows */}
       <div
         ref={listRef}
         role={search.active ? "listbox" : "tree"}
+        aria-label={search.active ? "Search results" : "Folder contents"}
+        tabIndex={0}
+        onClick={() => listRef.current?.focus({ preventScroll: true })}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        className="file-list flex-1 overflow-y-auto overflow-x-hidden"
       >
         {(state.rootLoading || tree.restoring) && (
           <p className="px-3 py-2 text-body" style={{ color: "var(--text-muted)" }}>
@@ -579,12 +636,13 @@ export function FileTreePanel({
         )}
 
         {!location && !tree.restoring && (
-          <p className="px-3 py-4 text-body leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            Open a folder, or drop one anywhere in the window, to review its 3D files side by side.
+          <p className="panel-empty" style={{ color: "var(--text-muted)" }}>
+            <strong>Your library starts here</strong>Open a folder to browse its models. You can
+            also drop a folder anywhere in the window.
           </p>
         )}
 
-        {location && !state.rootLoading && total === 0 && (
+        {location && !state.rootLoading && !state.rootError && !tree.restoring && total === 0 && (
           <p className="px-3 py-4 text-body" style={{ color: "var(--text-muted)" }}>
             {search.active
               ? search.searching
@@ -592,7 +650,9 @@ export function FileTreePanel({
                 : "No matches."
               : onlyIssues
                 ? "No issues found yet."
-                : "This folder is empty."}
+                : tree.modelsOnly
+                  ? "No 3D files here. Try showing all file types or opening a subfolder."
+                  : "This folder is empty."}
           </p>
         )}
 
@@ -634,12 +694,17 @@ export function FileTreePanel({
 
       {/* Status bar */}
       <div
-        className="flex items-center gap-2 px-2 py-1.5 text-meta"
+        className="file-status flex items-center gap-2 text-meta"
         style={{ borderTop: BORDER, color: "var(--text-muted)" }}
       >
         {batchProgress.running ? (
           <>
             <div
+              role="progressbar"
+              aria-label="Validating models"
+              aria-valuemin={0}
+              aria-valuemax={batchProgress.total || 1}
+              aria-valuenow={batchProgress.done}
               className="flex-1 h-1 rounded-full overflow-hidden"
               style={{ backgroundColor: "#2a2a4a" }}
             >
@@ -649,7 +714,7 @@ export function FileTreePanel({
                   width: batchProgress.total
                     ? `${(batchProgress.done / batchProgress.total) * 100}%`
                     : "0%",
-                  backgroundColor: "#e94560",
+                  backgroundColor: "var(--accent)",
                 }}
               />
             </div>
@@ -694,11 +759,11 @@ export function FileTreePanel({
       {contextTarget && (
         <div
           onClick={(event) => event.stopPropagation()}
-          className="fixed z-50 rounded-lg py-1 min-w-[180px] text-body"
+          className="file-popover fixed z-50 rounded-lg py-1 w-[220px] text-body"
           style={{
-            left: contextTarget.x,
-            top: contextTarget.y,
-            backgroundColor: "#16213e",
+            left: Math.max(8, Math.min(contextTarget.x, window.innerWidth - 228)),
+            top: Math.max(8, Math.min(contextTarget.y, window.innerHeight - 180)),
+            backgroundColor: "var(--bg-panel)",
             border: BORDER,
           }}
         >
@@ -709,7 +774,7 @@ export function FileTreePanel({
                 setContextTarget(null);
               }}
               className="block w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-              style={{ color: "#c2c2d0" }}
+              style={{ color: "var(--text-secondary)" }}
             >
               Open here
             </button>
@@ -720,7 +785,7 @@ export function FileTreePanel({
               setContextTarget(null);
             }}
             className="block w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-            style={{ color: "#c2c2d0" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             Reveal in file manager
           </button>
@@ -730,7 +795,7 @@ export function FileTreePanel({
               setContextTarget(null);
             }}
             className="block w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-            style={{ color: "#c2c2d0" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             Copy path
           </button>
@@ -740,7 +805,7 @@ export function FileTreePanel({
               setContextTarget(null);
             }}
             className="block w-full text-left px-3 py-1.5 cursor-pointer hover:bg-white/10"
-            style={{ color: "#c2c2d0" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             Refresh
           </button>
@@ -749,6 +814,24 @@ export function FileTreePanel({
 
       {/* Resize handle */}
       <div
+        role="separator"
+        aria-label="Resize files panel"
+        aria-orientation="vertical"
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          event.stopPropagation();
+          const next = Math.min(
+            MAX_WIDTH,
+            Math.max(MIN_WIDTH, width + (event.key === "ArrowRight" ? 20 : -20))
+          );
+          setWidth(next);
+          saveSession({ width: next });
+        }}
         onMouseDown={startResize}
         className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-[var(--accent)]/40"
         style={{ transform: "translateX(50%)" }}

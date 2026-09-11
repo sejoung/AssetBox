@@ -687,6 +687,14 @@ function KeyboardHandler({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        (e.target instanceof HTMLElement &&
+          (e.target.isContentEditable || e.target.matches("button, select")))
+      )
+        return;
       switch (e.key) {
         case "1":
           onViewMode("default");
@@ -832,6 +840,10 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           })
           .catch((err) => {
             if (cancelled) return;
+            setModel((previous) => {
+              if (previous) disposeScene(previous);
+              return null;
+            });
             log.error("Failed to load model:", err);
             onError?.(err instanceof Error ? err : new Error(String(err)));
           })
@@ -847,293 +859,302 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   }, [filePath, onModelLoaded, onError]);
 
   return (
-    <div className="w-full h-full relative" style={{ backgroundColor: BG_COLORS[bgMode] }}>
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div
-            className="flex flex-col items-center gap-5 px-16 py-12 rounded-2xl"
+    <div className="viewer-scene" style={{ backgroundColor: BG_COLORS[bgMode] }}>
+      <div className="canvas-stage">
+        {loading && (
+          <div role="status" className="loading-overlay">
+            <div
+              className="flex flex-col items-center gap-5 px-16 py-12 rounded-2xl"
+              style={{
+                backgroundColor: OVERLAY_BG,
+                backdropFilter: OVERLAY_BACKDROP,
+                border: OVERLAY_BORDER,
+              }}
+            >
+              <svg
+                className="w-10 h-10 animate-spin"
+                style={{ color: "var(--accent)" }}
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-20"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                />
+                <path
+                  className="opacity-80"
+                  d="M12 2a10 10 0 019.95 9"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="text-sm font-medium leading-relaxed" style={{ color: "#eaeaea" }}>
+                {loadingMessage}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <Canvas
+          camera={{ position: [3, 3, 3], fov: 50 }}
+          gl={{ preserveDrawingBuffer: true, antialias: true }}
+          style={{ background: "transparent" }}
+        >
+          <ambientLight intensity={0.4} />
+          <directionalLight position={[5, 5, 5]} intensity={1} castShadow />
+          <directionalLight position={[-3, 2, -3]} intensity={0.3} />
+
+          <Suspense fallback={null}>
+            {model && (
+              <ModelDisplay
+                model={model}
+                viewMode={activeViewMode}
+                onFlippedInfo={setFlippedInfo}
+                focusTarget={focusTarget}
+                focusModelRef={focusModelRef}
+              />
+            )}
+            <Environment preset="studio" background={false} />
+          </Suspense>
+
+          <SceneGrid gridRef={gridRef} />
+          <ScreenshotHelper screenshotRef={screenshotRef} gridRef={gridRef} />
+
+          <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
+        </Canvas>
+
+        {activeViewMode === "normals" && flippedInfo && (
+          <button
+            onClick={() => setFocusTarget(flippedInfo.center.clone())}
             style={{
-              backgroundColor: OVERLAY_BG,
-              backdropFilter: OVERLAY_BACKDROP,
-              border: OVERLAY_BORDER,
+              position: "absolute",
+              bottom: 20,
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundColor: "rgba(255, 0, 0, 0.85)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 16px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              zIndex: 50,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
           >
             <svg
-              className="w-10 h-10 animate-spin"
-              style={{ color: "#e94560" }}
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <circle
-                className="opacity-20"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="3"
-              />
-              <path
-                className="opacity-80"
-                d="M12 2a10 10 0 019.95 9"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
             </svg>
-            <span className="text-sm font-medium leading-relaxed" style={{ color: "#eaeaea" }}>
-              {loadingMessage}
-            </span>
+            Flipped Normals ({flippedInfo.count})
+          </button>
+        )}
+
+        {activeViewMode === "retopo" && retopoInfo && (
+          <div
+            className="topology-panel"
+            style={{
+              position: "absolute",
+              top: 12,
+              left: 12,
+              backgroundColor: OVERLAY_BG,
+              border: OVERLAY_BORDER,
+              backdropFilter: OVERLAY_BACKDROP,
+              borderRadius: 12,
+              padding: "16px",
+              zIndex: 50,
+              width: "min(360px, calc(100% - 24px))",
+              maxHeight: "calc(100% - 24px)",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  backgroundColor: retopoInfo.needsRetopo ? "#f87171" : "#4ade80",
+                }}
+              />
+              <span style={{ color: "#eaeaea", fontSize: 14, fontWeight: 700 }}>
+                {retopoInfo.needsRetopo ? "Retopology Recommended" : "Topology OK"}
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "8px 20px",
+                fontSize: 12,
+              }}
+            >
+              <span style={{ color: "#a0a0b0" }}>Triangles</span>
+              <span style={{ color: "#eaeaea", fontFamily: "monospace", textAlign: "right" }}>
+                {retopoInfo.totalTris.toLocaleString()}
+              </span>
+
+              <span style={{ color: "#a0a0b0" }}>Thin triangles</span>
+              <span
+                style={{
+                  color: retopoInfo.thinTriPercent > 5 ? "#f87171" : "#4ade80",
+                  fontFamily: "monospace",
+                  textAlign: "right",
+                }}
+              >
+                {retopoInfo.thinTriPercent.toFixed(1)}%
+              </span>
+
+              <span style={{ color: "#a0a0b0" }}>Over-dense</span>
+              <span
+                style={{
+                  color: retopoInfo.overDensePercent > 10 ? "#f87171" : "#4ade80",
+                  fontFamily: "monospace",
+                  textAlign: "right",
+                }}
+              >
+                {retopoInfo.overDensePercent.toFixed(1)}%
+              </span>
+
+              <span style={{ color: "#a0a0b0" }}>Under-dense</span>
+              <span
+                style={{
+                  color: retopoInfo.underDensePercent > 10 ? "#f87171" : "#4ade80",
+                  fontFamily: "monospace",
+                  textAlign: "right",
+                }}
+              >
+                {retopoInfo.underDensePercent.toFixed(1)}%
+              </span>
+
+              <span style={{ color: "#a0a0b0" }}>Density ratio</span>
+              <span
+                style={{
+                  color:
+                    retopoInfo.densityRatio > 1000
+                      ? "#f87171"
+                      : retopoInfo.densityRatio > 100
+                        ? "#fbbf24"
+                        : "#4ade80",
+                  fontFamily: "monospace",
+                  textAlign: "right",
+                }}
+              >
+                {retopoInfo.densityRatio === Infinity ? "∞" : retopoInfo.densityRatio.toFixed(0)}x
+              </span>
+            </div>
+
+            {retopoInfo.reasons.length > 0 && (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: "1px solid rgba(60,60,100,0.5)",
+                }}
+              >
+                <span style={{ color: "#fbbf24", fontSize: 12, fontWeight: 600 }}>Issues:</span>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 16, color: "#a0a0b0", fontSize: 12 }}>
+                  {retopoInfo.reasons.map((r) => (
+                    <li key={r} style={{ marginBottom: 2 }}>
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: 12,
+                paddingTop: 10,
+                borderTop: "1px solid rgba(60,60,100,0.5)",
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                fontSize: 12,
+                color: "var(--text-secondary)",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    backgroundColor: "#0066ff",
+                    display: "inline-block",
+                  }}
+                />
+                Over-dense
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    backgroundColor: "#4ade80",
+                    display: "inline-block",
+                  }}
+                />
+                Good
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    backgroundColor: "#f87171",
+                    display: "inline-block",
+                  }}
+                />
+                Under-dense
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    backgroundColor: "#fbbf24",
+                    display: "inline-block",
+                  }}
+                />
+                Thin
+              </span>
+            </div>
           </div>
-        </div>
-      )}
-
-      <Canvas
-        camera={{ position: [3, 3, 3], fov: 50 }}
-        gl={{ preserveDrawingBuffer: true, antialias: true }}
-        style={{ background: "transparent" }}
-      >
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[5, 5, 5]} intensity={1} castShadow />
-        <directionalLight position={[-3, 2, -3]} intensity={0.3} />
-
-        <Suspense fallback={null}>
-          {model && (
-            <ModelDisplay
-              model={model}
-              viewMode={activeViewMode}
-              onFlippedInfo={setFlippedInfo}
-              focusTarget={focusTarget}
-              focusModelRef={focusModelRef}
-            />
-          )}
-          <Environment preset="studio" background={false} />
-        </Suspense>
-
-        <SceneGrid gridRef={gridRef} />
-        <ScreenshotHelper screenshotRef={screenshotRef} gridRef={gridRef} />
-
-        <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
-      </Canvas>
-
+        )}
+      </div>
       <ViewerToolbar
         viewMode={viewMode}
         bgMode={bgMode}
         onViewModeChange={handleViewMode}
         onBgModeChange={setBgMode}
         hasModel={!!model}
+        onFocusModel={handleFocusModel}
       />
-
-      {activeViewMode === "normals" && flippedInfo && (
-        <button
-          onClick={() => setFocusTarget(flippedInfo.center.clone())}
-          style={{
-            position: "absolute",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            backgroundColor: "rgba(255, 0, 0, 0.85)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "8px 16px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            zIndex: 50,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="6" />
-            <circle cx="12" cy="12" r="2" />
-          </svg>
-          Flipped Normals ({flippedInfo.count})
-        </button>
-      )}
-
-      {activeViewMode === "retopo" && retopoInfo && (
-        <div
-          style={{
-            position: "absolute",
-            top: 16,
-            left: 16,
-            backgroundColor: OVERLAY_BG,
-            border: OVERLAY_BORDER,
-            backdropFilter: OVERLAY_BACKDROP,
-            borderRadius: 12,
-            padding: "16px 24px",
-            zIndex: 50,
-            minWidth: 320,
-            maxWidth: 420,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                backgroundColor: retopoInfo.needsRetopo ? "#f87171" : "#4ade80",
-              }}
-            />
-            <span style={{ color: "#eaeaea", fontSize: 14, fontWeight: 700 }}>
-              {retopoInfo.needsRetopo ? "Retopology Recommended" : "Topology OK"}
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "8px 20px",
-              fontSize: 12,
-            }}
-          >
-            <span style={{ color: "#a0a0b0" }}>Triangles</span>
-            <span style={{ color: "#eaeaea", fontFamily: "monospace", textAlign: "right" }}>
-              {retopoInfo.totalTris.toLocaleString()}
-            </span>
-
-            <span style={{ color: "#a0a0b0" }}>Thin triangles</span>
-            <span
-              style={{
-                color: retopoInfo.thinTriPercent > 5 ? "#f87171" : "#4ade80",
-                fontFamily: "monospace",
-                textAlign: "right",
-              }}
-            >
-              {retopoInfo.thinTriPercent.toFixed(1)}%
-            </span>
-
-            <span style={{ color: "#a0a0b0" }}>Over-dense</span>
-            <span
-              style={{
-                color: retopoInfo.overDensePercent > 10 ? "#f87171" : "#4ade80",
-                fontFamily: "monospace",
-                textAlign: "right",
-              }}
-            >
-              {retopoInfo.overDensePercent.toFixed(1)}%
-            </span>
-
-            <span style={{ color: "#a0a0b0" }}>Under-dense</span>
-            <span
-              style={{
-                color: retopoInfo.underDensePercent > 10 ? "#f87171" : "#4ade80",
-                fontFamily: "monospace",
-                textAlign: "right",
-              }}
-            >
-              {retopoInfo.underDensePercent.toFixed(1)}%
-            </span>
-
-            <span style={{ color: "#a0a0b0" }}>Density ratio</span>
-            <span
-              style={{
-                color:
-                  retopoInfo.densityRatio > 1000
-                    ? "#f87171"
-                    : retopoInfo.densityRatio > 100
-                      ? "#fbbf24"
-                      : "#4ade80",
-                fontFamily: "monospace",
-                textAlign: "right",
-              }}
-            >
-              {retopoInfo.densityRatio === Infinity ? "∞" : retopoInfo.densityRatio.toFixed(0)}x
-            </span>
-          </div>
-
-          {retopoInfo.reasons.length > 0 && (
-            <div
-              style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(60,60,100,0.5)" }}
-            >
-              <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 600 }}>Issues:</span>
-              <ul style={{ margin: "6px 0 0", paddingLeft: 16, color: "#a0a0b0", fontSize: 11 }}>
-                {retopoInfo.reasons.map((r) => (
-                  <li key={r} style={{ marginBottom: 2 }}>
-                    {r}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div
-            style={{
-              marginTop: 12,
-              paddingTop: 10,
-              borderTop: "1px solid rgba(60,60,100,0.5)",
-              display: "flex",
-              gap: 16,
-              fontSize: 10,
-              color: "#707080",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  backgroundColor: "#0066ff",
-                  display: "inline-block",
-                }}
-              />
-              Over-dense
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  backgroundColor: "#4ade80",
-                  display: "inline-block",
-                }}
-              />
-              Good
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  backgroundColor: "#f87171",
-                  display: "inline-block",
-                }}
-              />
-              Under-dense
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  backgroundColor: "#fbbf24",
-                  display: "inline-block",
-                }}
-              />
-              Thin
-            </span>
-          </div>
-        </div>
-      )}
 
       <KeyboardHandler onViewMode={handleViewMode} onFocusModel={handleFocusModel} />
     </div>

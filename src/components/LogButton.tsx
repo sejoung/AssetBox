@@ -13,12 +13,13 @@ export function LogButton() {
   return (
     <button
       onClick={handleClick}
-      className="flex items-center justify-center w-[44px] h-[44px] rounded-xl transition-all duration-200 cursor-pointer hover:brightness-125"
+      className="icon-button"
       style={{
         backgroundColor: OVERLAY_BG,
         border: OVERLAY_BORDER,
         backdropFilter: OVERLAY_BACKDROP,
       }}
+      aria-label="Open log directory"
       title="Open log directory"
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#a0a0b0" strokeWidth={1.5}>

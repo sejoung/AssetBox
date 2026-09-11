@@ -52,7 +52,9 @@
 | **Solid** | `1` | 기본 렌더링 |
 | **Wire** | `2` | 와이어프레임 (텍스처 제거, 토폴로지 확인) |
 | **Normals** | `3` | 노멀 방향 시각화 (파란색=정상, 빨간색=뒤집힘) |
-| **UV** | `4` | 체커보드 텍스처로 UV 매핑 확인 |
+| **Normal Map** | `4` | 노멀을 색상으로 시각화 |
+| **UV** | `5` | 체커보드 텍스처로 UV 매핑 확인 |
+| **Retopo** | `6` | 삼각형 밀도와 형태 진단 |
 
 ### Texture Auto-Matching
 - `_basecolor`, `_normal`, `_roughness` 등 네이밍 규칙 기반 자동 탐색
@@ -172,10 +174,10 @@ src/                              # Frontend (React + TypeScript)
 ├── components/
 │   ├── DropZone.tsx              # Drag & drop zone
 │   ├── Viewer3D.tsx              # Three.js 3D viewer + view modes
-│   ├── ViewerToolbar.tsx         # Solid/Wire/Normals/UV toggle
+│   ├── ViewerToolbar.tsx         # Six view modes + background controls
 │   ├── ModelLoader.ts            # FBX/GLB/OBJ loader + mesh analysis
 │   ├── TextureMatcher.ts         # Auto texture matching
-│   ├── InfoPanel.tsx             # Floating info overlay
+│   ├── InfoPanel.tsx             # Collapsible asset information panel
 │   ├── ValidationBadge.tsx       # Good/Warning/Bad badge
 │   ├── ThumbnailButton.tsx       # Thumbnail capture
 │   └── ReportButton.tsx          # HTML report export
@@ -233,9 +235,19 @@ tests/                            # 136 tests across 14 suites
 
 ---
 
+## Documentation
+
+- [디자인 가이드 / Design guide (Korean)](docs/DESIGN_GUIDE.md) — UI 원칙, 공통 스타일, 반응형 배치, 상태별 동작과 변경 확인 목록
+- 기능 상세: [한국어](docs/FEATURES_KO.md) · [English](docs/FEATURES_EN.md)
+- 활용 가이드: [한국어](docs/GUIDE_KO.md) · [English](docs/GUIDE_EN.md)
+
+---
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+For UI changes, follow the [design guide](docs/DESIGN_GUIDE.md) and update it when shared design rules change.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)

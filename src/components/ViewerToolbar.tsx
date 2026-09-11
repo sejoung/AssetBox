@@ -1,4 +1,4 @@
-import { OVERLAY_BG, OVERLAY_BORDER, OVERLAY_BACKDROP, type BgMode } from "../lib/overlayStyle";
+import { BG_COLORS, type BgMode } from "../lib/overlayStyle";
 
 export type ViewMode = "default" | "wireframe" | "normals" | "normalmap" | "uv" | "retopo";
 
@@ -8,6 +8,7 @@ interface ViewerToolbarProps {
   onViewModeChange: (mode: ViewMode) => void;
   onBgModeChange: (mode: BgMode) => void;
   hasModel: boolean;
+  onFocusModel?: () => void;
 }
 
 const VIEW_MODES: { mode: ViewMode; label: string; shortcut: string; icon: string }[] = [
@@ -50,9 +51,9 @@ const VIEW_MODES: { mode: ViewMode; label: string; shortcut: string; icon: strin
 ];
 
 const BG_MODES: { mode: BgMode; color: string }[] = [
-  { mode: "dark", color: "#1a1a2e" },
-  { mode: "neutral", color: "#404040" },
-  { mode: "light", color: "#d0d0d0" },
+  { mode: "dark", color: BG_COLORS.dark },
+  { mode: "neutral", color: BG_COLORS.neutral },
+  { mode: "light", color: BG_COLORS.light },
 ];
 
 export function ViewerToolbar({
@@ -61,69 +62,58 @@ export function ViewerToolbar({
   onViewModeChange,
   onBgModeChange,
   hasModel,
+  onFocusModel,
 }: ViewerToolbarProps) {
   if (!hasModel) return null;
-
   return (
-    <div className="absolute bottom-5 left-5 right-5 z-20 flex items-center gap-1.5 flex-wrap justify-start">
-      {/* View mode — separate pill buttons */}
-      {VIEW_MODES.map(({ mode, label, shortcut, icon }) => {
-        const isActive = viewMode === mode;
-        return (
+    <div className="viewer-toolbar" aria-label="Preview controls">
+      <div className="view-modes" role="group" aria-label="View mode">
+        {VIEW_MODES.map(({ mode, label, shortcut, icon }) => (
           <button
             key={mode}
             onClick={() => onViewModeChange(mode)}
-            className="flex items-center gap-2.5 min-w-[90px] px-5 py-3 rounded-xl text-sm font-semibold leading-relaxed whitespace-nowrap transition-all duration-150 cursor-pointer hover:brightness-125 shrink-0"
-            style={{
-              backgroundColor: isActive ? "rgba(233, 69, 96, 0.25)" : OVERLAY_BG,
-              border: isActive ? "1px solid #e94560" : OVERLAY_BORDER,
-              color: isActive ? "#e94560" : "#a0a0b0",
-              backdropFilter: OVERLAY_BACKDROP,
-            }}
+            className="view-mode"
+            aria-pressed={viewMode === mode}
             title={`${label} (${shortcut})`}
           >
             <svg
-              className="w-4 h-4 shrink-0"
+              width="16"
+              height="16"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
               strokeWidth={1.5}
+              aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
             </svg>
             {label}
+            <kbd>{shortcut}</kbd>
           </button>
-        );
-      })}
-
-      {/* Divider */}
-      <div
-        className="w-px h-6 mx-0.5 shrink-0"
-        style={{ backgroundColor: "rgba(60, 60, 100, 0.5)" }}
-      />
-
-      {/* Background color picker */}
-      <div
-        className="flex items-center gap-2.5 px-5 py-3 rounded-xl shrink-0"
-        style={{
-          backgroundColor: OVERLAY_BG,
-          border: OVERLAY_BORDER,
-          backdropFilter: OVERLAY_BACKDROP,
-        }}
-      >
-        {BG_MODES.map(({ mode, color }) => (
-          <button
-            key={mode}
-            onClick={() => onBgModeChange(mode)}
-            className="w-5 h-5 rounded-full cursor-pointer transition-transform hover:scale-110"
-            style={{
-              backgroundColor: color,
-              outline: bgMode === mode ? "2px solid #e94560" : "2px solid rgba(60, 60, 100, 0.4)",
-              outlineOffset: "1px",
-            }}
-            title={mode}
-          />
         ))}
+      </div>
+      <div className="viewer-utilities">
+        {onFocusModel && (
+          <button className="ui-button" onClick={onFocusModel} title="Fit model to view (F)">
+            Fit model <kbd>F</kbd>
+          </button>
+        )}
+        <div className="background-picker" role="group" aria-label="Background color">
+          <span>Background</span>
+          {BG_MODES.map(({ mode, color }) => (
+            <button
+              key={mode}
+              className="background-swatch"
+              onClick={() => onBgModeChange(mode)}
+              aria-label={`${mode} background`}
+              aria-pressed={bgMode === mode}
+              title={mode}
+            >
+              <span style={{ backgroundColor: color }} />
+            </button>
+          ))}
+        </div>
+        <span className="navigation-hint">Drag to orbit · Scroll to zoom</span>
       </div>
     </div>
   );

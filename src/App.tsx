@@ -41,12 +41,15 @@ function App() {
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const [asset, setAsset] = useState<AssetInfo | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [severityByPath, setSeverityByPath] = useState<Record<string, ValidationSeverity>>({});
   const viewerRef = useRef<Viewer3DHandle>(null);
+  const currentFileRef = useRef(filePath);
+  currentFileRef.current = filePath;
 
   const tree = useFileTree();
 
@@ -64,7 +67,10 @@ function App() {
   const batch = useBatchValidation(recordSeverity);
 
   const selectFile = useCallback((path: string) => {
+    if (path === currentFileRef.current) return;
     epochRef.current++;
+    setAsset(null);
+    setValidation(null);
     setError(null);
     setFilePath(path);
   }, []);
@@ -73,7 +79,10 @@ function App() {
   const activate = useCallback(
     (path: string, isDir: boolean) => {
       setFocusedPath(path);
-      if (!isDir) selectFile(path);
+      if (!isDir) {
+        if (isModelPath(path)) selectFile(path);
+        else setError("This file cannot be previewed. Choose an FBX, GLB, glTF or OBJ model.");
+      }
     },
     [selectFile]
   );
@@ -84,12 +93,29 @@ function App() {
     [onlyIssues, tree.rows, severityByPath]
   );
 
+  const displayTree = useMemo(
+    () =>
+      onlyIssues && tree.search.active
+        ? {
+            ...tree,
+            search: {
+              ...tree.search,
+              results: tree.search.results.filter(
+                (entry) =>
+                  severityByPath[entry.path] === "warning" || severityByPath[entry.path] === "bad"
+              ),
+            },
+          }
+        : tree,
+    [tree, onlyIssues, severityByPath]
+  );
+
   const navPaths = useMemo(
     () =>
       tree.search.active
-        ? tree.search.results.map((entry) => entry.path)
+        ? displayTree.search.results.map((entry) => entry.path)
         : visibleRows.map((row) => row.path),
-    [tree.search.active, tree.search.results, visibleRows]
+    [tree.search.active, displayTree.search.results, visibleRows]
   );
 
   // The window-level handler reads live values here instead of re-subscribing.
@@ -120,6 +146,7 @@ function App() {
       if (typeof selected === "string") await navigateTo(selected);
     } catch (err) {
       log.error("Open folder failed:", err);
+      setError("Could not open the folder. Please try again.");
     }
   }, [navigateTo]);
 
@@ -142,7 +169,10 @@ function App() {
       }
 
       const model = paths.find(isModelPath);
-      if (!model) return;
+      if (!model) {
+        setError("Choose an FBX, GLB, glTF or OBJ model, or open a folder.");
+        return;
+      }
 
       // Only re-navigate when the file lives outside the current folder, so
       // dropping a sibling keeps the expansion state.
@@ -155,15 +185,15 @@ function App() {
 
   useFileDropHandler(handleDroppedPaths);
 
-  const handleBrowserDrop = useCallback((files: File[]) => {
-    // Browser drops only carry a real path outside Tauri's webview; the Tauri
-    // drag-drop event above is the path that matters in the desktop app.
-    const path = (files[0] as (File & { path?: string }) | undefined)?.path;
-    if (path) {
-      setError(null);
-      setFilePath(path);
-    }
-  }, []);
+  const handleBrowserDrop = useCallback(
+    (files: File[]) => {
+      const paths = files
+        .map((file) => (file as File & { path?: string }).path)
+        .filter((path): path is string => !!path);
+      if (paths.length) void handleDroppedPaths(paths);
+    },
+    [handleDroppedPaths]
+  );
 
   const handleModelLoaded = useCallback(
     async (model: LoadedModel) => {
@@ -195,7 +225,10 @@ function App() {
   // File-manager style keyboard navigation over the tree.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      if (
+        event.target instanceof HTMLElement &&
+        (event.target.matches("input, textarea, select") || event.target.isContentEditable)
+      ) {
         return;
       }
 
@@ -219,6 +252,12 @@ function App() {
         return;
       }
       if (modifier || event.altKey) return;
+      if (
+        !sidebarOpen ||
+        !(event.target instanceof Element) ||
+        !event.target.closest('[role="tree"], [role="listbox"]')
+      )
+        return;
 
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         const next = stepPath(paths, focused, event.key === "ArrowDown" ? 1 : -1);
@@ -271,7 +310,7 @@ function App() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activate]);
+  }, [activate, sidebarOpen]);
 
   // Once the current file is inspected, warm the next model in the list.
   useEffect(() => {
@@ -289,83 +328,116 @@ function App() {
     () =>
       filePath ? (
         <Viewer3D
+          key={loadAttempt}
           ref={viewerRef}
           filePath={filePath}
           onModelLoaded={handleModelLoaded}
           onError={handleError}
         />
       ) : null,
-    [filePath, handleModelLoaded, handleError]
+    [filePath, handleModelLoaded, handleError, loadAttempt]
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
-      {sidebarOpen && (
-        <FileTreePanel
-          tree={tree}
-          rows={visibleRows}
-          selectedPath={filePath}
-          focusedPath={focusedPath}
-          onActivate={activate}
-          severityByPath={severityByPath}
-          onOpenFolder={handleOpenFolder}
-          onlyIssues={onlyIssues}
-          onOnlyIssuesChange={setOnlyIssues}
-          searchOpen={searchOpen}
-          onSearchOpenChange={setSearchOpen}
-          batchProgress={batch.progress}
-          onValidateAll={handleValidateAll}
-          onCancelBatch={batch.cancel}
-        />
-      )}
-
-      <div className="relative flex-1 min-w-0 overflow-hidden">
-        {/* Full-screen viewport */}
-        <DropZone onFileDrop={handleBrowserDrop} hasFile={!!filePath}>
-          {viewer}
-        </DropZone>
-
-        {!sidebarOpen && (
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            ⬡
+          </span>
+          AssetBox<span className="brand-caption">3D asset workspace</span>
+        </div>
+        <div className="header-actions">
           <button
-            onClick={() => setSidebarOpen(true)}
-            title="Show file tree (Cmd+B)"
-            className="absolute bottom-3 left-3 z-30 px-2.5 py-1.5 rounded-lg text-body cursor-pointer hover:brightness-125 transition-all"
-            style={{ backgroundColor: "rgba(16, 24, 48, 0.94)", color: "#c8c8d4" }}
+            className="ui-button"
+            aria-pressed={sidebarOpen}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            title="Toggle files (⌘/Ctrl+B)"
           >
-            ☰ Files
+            Files
           </button>
+          <button className="ui-button" onClick={handleOpenFolder}>
+            Open folder
+          </button>
+        </div>
+      </header>
+      <main className="workspace">
+        {sidebarOpen && (
+          <FileTreePanel
+            tree={displayTree}
+            rows={visibleRows}
+            selectedPath={filePath}
+            focusedPath={focusedPath}
+            onActivate={activate}
+            severityByPath={severityByPath}
+            onOpenFolder={handleOpenFolder}
+            onlyIssues={onlyIssues}
+            onOnlyIssuesChange={setOnlyIssues}
+            searchOpen={searchOpen}
+            onSearchOpenChange={setSearchOpen}
+            batchProgress={batch.progress}
+            onValidateAll={handleValidateAll}
+            onCancelBatch={batch.cancel}
+          />
         )}
-
-        {/* Overlay UI */}
+        <section className="preview-pane" aria-label="3D preview">
+          <div className="preview-heading">
+            <span className="section-label">Preview</span>
+            <span className="preview-filename" title={filePath ?? undefined}>
+              {filePath ? filePath.split(/[/\\]/).pop() : "No model selected"}
+            </span>
+          </div>
+          <div className="preview-stage">
+            <DropZone
+              onFileDrop={handleBrowserDrop}
+              hasFile={!!filePath}
+              onOpenFolder={handleOpenFolder}
+              hasFolder={!!tree.location}
+            >
+              {viewer}
+            </DropZone>
+            {error && (
+              <div className="error-notice" role="alert">
+                <div>
+                  <strong>Unable to complete the action</strong>
+                  <p>{error}</p>
+                </div>
+                {filePath && !asset && (
+                  <button
+                    className="ui-button"
+                    onClick={() => {
+                      epochRef.current++;
+                      setError(null);
+                      setLoadAttempt((attempt) => attempt + 1);
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
+                <button
+                  className="ui-button"
+                  onClick={() => invoke("open_log_directory").catch(() => {})}
+                >
+                  Logs
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Dismiss error"
+                  onClick={() => setError(null)}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
         <InfoPanel
           asset={asset}
           validation={validation}
           viewerRef={viewerRef}
           assetPath={filePath}
         />
-
-        {/* Error toast */}
-        {error && (
-          <div
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-2 rounded-lg text-body"
-            style={{
-              backgroundColor: "rgba(248, 113, 113, 0.15)",
-              backdropFilter: "blur(12px)",
-              color: "var(--danger)",
-            }}
-          >
-            <span>{error}</span>
-            <button
-              onClick={() => invoke("open_log_directory").catch(() => {})}
-              className="shrink-0 px-2 py-0.5 rounded text-meta font-semibold cursor-pointer hover:brightness-125 transition-all"
-              style={{ backgroundColor: "rgba(248, 113, 113, 0.3)", color: "#f87171" }}
-              title="Open log directory"
-            >
-              Logs
-            </button>
-          </div>
-        )}
-      </div>
+      </main>
     </div>
   );
 }

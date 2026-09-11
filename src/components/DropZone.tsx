@@ -3,34 +3,26 @@ import { useState, useCallback } from "react";
 interface DropZoneProps {
   onFileDrop: (files: File[]) => void;
   hasFile: boolean;
+  onOpenFolder?: () => void;
+  hasFolder?: boolean;
   children?: React.ReactNode;
 }
 
-export function DropZone({ onFileDrop, hasFile, children }: DropZoneProps) {
+export function DropZone({
+  onFileDrop,
+  hasFile,
+  onOpenFolder,
+  hasFolder,
+  children,
+}: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
       setIsDragOver(false);
-
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length > 0) {
-        onFileDrop(files);
-      }
+      const files = Array.from(event.dataTransfer.files);
+      if (files.length > 0) onFileDrop(files);
     },
     [onFileDrop]
   );
@@ -38,45 +30,47 @@ export function DropZone({ onFileDrop, hasFile, children }: DropZoneProps) {
   return (
     <div
       data-testid="drop-zone"
-      className={`relative w-full h-full ${isDragOver ? "drag-over" : ""}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
+      className={`drop-zone ${isDragOver ? "drag-over" : ""}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragOver(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragOver(false);
+      }}
       onDrop={handleDrop}
     >
       {!hasFile && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
-          <div
-            className={`
-              border-2 border-dashed rounded-2xl p-12 transition-all duration-200
-              ${isDragOver ? "border-[var(--accent)] bg-[var(--accent)]/10 scale-105" : "border-[var(--border)]"}
-            `}
-          >
-            <div className="text-center">
-              <svg
-                className="mx-auto mb-4 w-16 h-16"
-                style={{ color: isDragOver ? "var(--accent)" : "var(--text-secondary)" }}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                />
-              </svg>
-              <p className="text-xl font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
-                Drag & Drop 3D File
-              </p>
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Supports FBX, GLB, OBJ formats
-              </p>
-            </div>
+        <div className="welcome">
+          <div className="welcome-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
+              <path d="m12 3 9 5v8l-9 5-9-5V8l9-5Zm0 9 9-4M3 8l9 4m0 0v9M7.5 5.5l9 5" />
+            </svg>
           </div>
+          <span className="section-label">Your assets, in focus</span>
+          <h1>{hasFolder ? "Select a model to preview" : "A closer look at your 3D assets"}</h1>
+          <p>
+            {hasFolder
+              ? "Choose a file from the list to inspect its geometry, textures and quality."
+              : "Open a folder to browse, preview and check your models in one place."}
+          </p>
+          {onOpenFolder && (
+            <button className="ui-button primary-button" onClick={onOpenFolder}>
+              Open folder <span aria-hidden="true">↗</span>
+            </button>
+          )}
+          <p className="drop-hint">or drag & drop a 3D file or folder here</p>
+          <span className="format-list">FBX · GLB · glTF · OBJ</span>
         </div>
       )}
       {children}
+      {isDragOver && (
+        <div className="drop-overlay" aria-hidden="true">
+          Drop to open
+        </div>
+      )}
     </div>
   );
 }
