@@ -1,3 +1,4 @@
+import { RiggingPanel } from "./RiggingPanel";
 import { IssueDetails } from "./IssueDetails";
 import type { IssueSelection } from "../lib/issueInspection";
 import { VALIDATION_STATUS } from "../lib/validationStatus";
@@ -18,6 +19,8 @@ interface IssueProps {
 }
 
 interface InfoPanelProps extends IssueProps {
+  bonesVisible?: boolean;
+  onBonesVisibleChange?: (visible: boolean) => void;
   asset: AssetInfo | null;
   validation: ValidationResult | null;
   viewerRef: React.RefObject<Viewer3DHandle | null>;
@@ -108,6 +111,8 @@ export function InfoPanel({
   validation,
   viewerRef,
   assetPath,
+  bonesVisible = false,
+  onBonesVisibleChange,
   ...issueProps
 }: InfoPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -149,6 +154,15 @@ export function InfoPanel({
                   ? "Some checks are incomplete; see the details below."
                   : "Budget flags are guidance, not a rejection."}
               </p>
+            )}
+            {asset.rigging && (
+              <RiggingPanel
+                key={asset.filePath}
+                rigging={asset.rigging}
+                format={asset.format}
+                bonesVisible={bonesVisible}
+                onBonesVisibleChange={onBonesVisibleChange}
+              />
             )}
             {validation?.groups.map((group) => (
               <CategoryGroup key={group.category} group={group} {...issueProps} />

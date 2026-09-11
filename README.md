@@ -56,6 +56,12 @@
 | **UV** | `5` | 체커보드 텍스처로 UV 매핑 확인 |
 | **Retopo** | `6` | 삼각형 밀도와 형태 진단 |
 
+### Rigging Information
+- FBX·GLB·glTF의 본 이름·계층 검색, 스킨 연결·정점당 최대 본 영향 수 확인
+- **Show bones** — 모델 위에 본 관절과 연결선 표시
+- 애니메이션 클립 이름·길이·트랙 수 확인 (재생은 미지원)
+- 내보낸 본·스킨 기준이며 Blender의 IK·컨트롤 리그는 검사하지 않음
+
 ### Texture Auto-Matching
 - `_basecolor`, `_normal`, `_roughness` 등 네이밍 규칙 기반 자동 탐색
 - 내장 텍스처(GLB 등) 자동 인식

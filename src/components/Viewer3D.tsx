@@ -1,3 +1,5 @@
+import { BoneOverlay } from "./BoneOverlay";
+import { collectRigBones } from "../lib/riggingInspection";
 import { applyRetopoOverlay } from "../lib/retopoOverlay";
 import {
   useRef,
@@ -365,6 +367,7 @@ function CameraFocus({ target }: { target: THREE.Vector3 }) {
 // ── Model display ──
 
 interface ModelDisplayProps {
+  bonesVisible: boolean;
   model: THREE.Group;
   viewMode: ViewMode;
   onFlippedInfo?: (info: FlippedNormalInfo | null) => void;
@@ -378,6 +381,7 @@ function ModelDisplay({
   onFlippedInfo,
   focusTarget,
   focusModelRef,
+  bonesVisible,
 }: ModelDisplayProps) {
   const { camera, controls, invalidate } = useThree();
 
@@ -386,6 +390,10 @@ function ModelDisplay({
     // the model so the first camera placement uses the displayed coordinates.
     model.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(model);
+    if (bonesVisible || box.isEmpty()) {
+      const position = new THREE.Vector3();
+      for (const bone of collectRigBones(model)) box.expandByPoint(bone.getWorldPosition(position));
+    }
     focusIssueBounds(
       camera as THREE.PerspectiveCamera,
       controls as Parameters<typeof focusIssueBounds>[1],
@@ -400,7 +408,7 @@ function ModelDisplay({
       );
     }
     invalidate();
-  }, [model, camera, controls, invalidate]);
+  }, [model, camera, controls, invalidate, bonesVisible]);
 
   useLayoutEffect(() => {
     focusOnModel();
@@ -543,6 +551,7 @@ export interface Viewer3DHandle {
 interface Viewer3DProps {
   filePath: string | null;
   loadRevision?: number;
+  bonesVisible?: boolean;
   onModelLoaded?: (model: LoadedModel) => void;
   onError?: (error: Error) => void;
   issueSelection?: IssueSelection | null;
@@ -550,7 +559,15 @@ interface Viewer3DProps {
 }
 
 export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewer3D(
-  { filePath, loadRevision = 0, onModelLoaded, onError, issueSelection, onClearIssue },
+  {
+    filePath,
+    loadRevision = 0,
+    onModelLoaded,
+    onError,
+    issueSelection,
+    onClearIssue,
+    bonesVisible = false,
+  },
   ref
 ) {
   const [model, setModel] = useState<THREE.Group | null>(null);
@@ -745,12 +762,14 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
           {model && (
             <ModelDisplay
               model={model}
+              bonesVisible={bonesVisible && !selectedIssue}
               viewMode={displayViewMode}
               onFlippedInfo={setFlippedInfo}
               focusTarget={selectedIssue ? null : focusTarget}
               focusModelRef={focusModelRef}
             />
           )}
+          {model && bonesVisible && !selectedIssue && <BoneOverlay model={model} />}
           {selectedIssue && <IssueHighlight selection={selectedIssue} />}
 
           {showGrid && !selectedIssue && <SceneGrid gridRef={gridRef} bgMode={bgMode} />}

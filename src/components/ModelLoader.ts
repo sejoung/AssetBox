@@ -1,3 +1,5 @@
+import { inspectRigging } from "../lib/riggingInspection";
+import type { RiggingInfo } from "../types/asset";
 import { configureLocalResources } from "../lib/modelResources";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
@@ -54,12 +56,14 @@ export interface LoadedModel {
   textureInspection: TextureInspection;
   diagnostics: MeshDiagnostics;
   retopoDiag: RetopoDiagInfo;
+  rigging: RiggingInfo;
 }
 
 export function analyzeModel(
   object: THREE.Object3D,
   referencesVerified = true,
-  failedResources: string[] = []
+  failedResources: string[] = [],
+  animations: THREE.AnimationClip[] = object.animations
 ): Omit<LoadedModel, "scene"> {
   let polyCount = 0;
   let vertexCount = 0;
@@ -171,6 +175,7 @@ export function analyzeModel(
       offCenterDistance: parseFloat(offCenterDistance.toFixed(2)),
     },
     retopoDiag: analyzeRetopo(object),
+    rigging: inspectRigging(object, animations),
   };
 }
 
@@ -339,11 +344,12 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
     const manager = new THREE.LoadingManager();
     manager.onError = (url) => failedResources.push(url);
     let object: THREE.Group | null = null;
+    let animations: THREE.AnimationClip[] = [];
     // FBX may finish parsing before its images. Inspect after all manager items finish.
     manager.onLoad = () => {
       if (!object) return;
       try {
-        const stats = analyzeModel(object, ext !== "obj", failedResources);
+        const stats = analyzeModel(object, ext !== "obj", failedResources, animations);
         retainSceneResources(object);
         resolve({ scene: object, ...stats });
       } catch (error) {
@@ -351,8 +357,9 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
         reject(error);
       }
     };
-    const onLoad = (loaded: THREE.Group) => {
+    const onLoad = (loaded: THREE.Group, clips = loaded.animations) => {
       object = loaded;
+      animations = clips;
     };
 
     switch (ext) {
@@ -362,7 +369,7 @@ function loadModelFresh(filePath: string): Promise<LoadedModel> {
         if (!/^https?:\/\//i.test(filePath)) {
           configureLocalResources(loader, filePath, convertFilePath, true);
         }
-        loader.load(url, (gltf) => onLoad(gltf.scene), undefined, reject);
+        loader.load(url, (gltf) => onLoad(gltf.scene, gltf.animations), undefined, reject);
         break;
       }
       case "fbx": {

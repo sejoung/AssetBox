@@ -854,3 +854,72 @@ kbd {
   color: var(--text-primary);
   font-weight: 600;
 }
+
+/* Rigging uses the inspector's neutral information hierarchy, not verdict colors. */
+.rig-toggle {
+  margin: 8px 0 4px;
+  width: 100%;
+}
+.rig-details {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.rig-details > summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-weight: 600;
+  font-size: 12px;
+}
+.rig-details > summary > span {
+  float: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.rig-search {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+}
+.rig-bones,
+.rig-list {
+  max-height: 260px;
+  overflow: auto;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.rig-bones li {
+  min-height: 34px;
+  padding-block: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.rig-bone-name,
+.rig-parent {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rig-parent {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.rig-entry {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.rig-entry strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.rig-entry p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}

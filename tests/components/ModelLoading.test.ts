@@ -59,3 +59,19 @@ describe("loader completion", () => {
     await expect(loadModel("http://fixture/broken.fbx")).rejects.toThrow("Cannot load model");
   });
 });
+
+it("preserves animation clips supplied on FBX scene roots", async () => {
+  fixture.load.mockImplementation(
+    (manager: THREE.LoadingManager, url: string, onLoad: (scene: THREE.Group) => void) => {
+      const scene = new THREE.Group();
+      scene.add(new THREE.Bone());
+      scene.animations = [new THREE.AnimationClip("Walk", 2, [])];
+      manager.itemStart(url);
+      onLoad(scene);
+      manager.itemEnd(url);
+    }
+  );
+  const loaded = await loadModel("http://fixture/animated.fbx");
+  expect(loaded.rigging.bones).toHaveLength(1);
+  expect(loaded.rigging.clips).toMatchObject([{ name: "Walk", duration: 2, trackCount: 0 }]);
+});

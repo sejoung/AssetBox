@@ -50,5 +50,6 @@ export async function buildAssetInfo(filePath: string, model: LoadedModel): Prom
     textures,
     missingTextures,
     retopoDiag: model.retopoDiag,
+    rigging: model.rigging,
   };
 }

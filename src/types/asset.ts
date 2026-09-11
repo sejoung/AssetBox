@@ -29,6 +29,24 @@ export interface RetopoDiagInfo {
   reasons: string[];
 }
 
+export interface SkinInfo {
+  id: string;
+  name: string;
+  boneCount: number;
+  vertexCount: number;
+  /** Null means the loaded skin attributes could not be inspected. */
+  maxInfluences: number | null;
+  unweightedVertices: number | null;
+  invalidInfluenceVertices: number | null;
+}
+
+export interface RiggingInfo {
+  skeletonCount: number;
+  bones: { id: string; name: string; parentId: string | null }[];
+  skins: SkinInfo[];
+  clips: { id: string; name: string; duration: number | null; trackCount: number }[];
+}
+
 export interface AssetInfo {
   fileName: string;
   filePath: string;
@@ -41,6 +59,7 @@ export interface AssetInfo {
   /** Resource URLs reported as failed by the model loader; not filename guesses. */
   missingTextures: string[];
   retopoDiag?: RetopoDiagInfo;
+  rigging?: RiggingInfo;
 }
 
 export type ValidationSeverity = "good" | "warning" | "bad" | "unknown";

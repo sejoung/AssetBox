@@ -228,7 +228,7 @@ Shared colors, typography, spacing, responsive layout, and change guidelines are
 | App header | AssetBox, file browser toggle, Open folder |
 | Left Files panel | Folder navigation, search, filters, file list, batch validation |
 | Center Preview | Current filename, 3D canvas, six view modes, three backgrounds, Fit model |
-| Right Asset information | File summary and verdict, validation groups, textures, Report, Thumbnail, Logs |
+| Right Asset information | File summary and verdict, rigging information, validation groups, textures, Report, Thumbnail, Logs |
 
 The file list and inspection details scroll independently. Preview controls and export buttons stay within their respective areas. Collapsing the inspector makes more room for the model. Previous inspection details and export buttons are hidden while inspecting a newly selected file.
 
@@ -308,3 +308,7 @@ The default window is 1280 × 800px; the minimum is 900 × 600px. At window widt
 - **Asset protocol:** Enabled (local file access)
 - **Drag and drop:** Enabled
 - **CSP:** Disabled (Three.js compatibility)
+
+## Rigging information
+
+Inspect FBX, GLB and glTF bone hierarchies, search names, view skin bindings and maximum influences, and list animation names, durations and track counts. `Show bones` overlays joints and links on the model. Rigging information does not affect validation grades. Animation playback and IK/control-rig inspection are not supported.

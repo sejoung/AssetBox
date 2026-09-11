@@ -56,10 +56,16 @@ function App() {
   const [severityByPath, setSeverityByPath] = useState<Record<string, ValidationSeverity>>({});
   const viewerRef = useRef<Viewer3DHandle>(null);
   const inspectionSource = useRef<InspectionSource | null>(null);
+  const [bonesVisible, setBonesVisible] = useState(false);
   const [issueSelection, setIssueSelection] = useState<IssueSelection | null>(null);
   const clearIssue = useCallback(() => setIssueSelection(null), []);
   const selectIssue = useCallback((item: ValidationItem) => {
+    setBonesVisible(false);
     if (inspectionSource.current) setIssueSelection(inspectIssue(inspectionSource.current, item));
+  }, []);
+  const toggleBones = useCallback((visible: boolean) => {
+    setIssueSelection(null);
+    setBonesVisible(visible);
   }, []);
   const selectIssueTarget = useCallback((targetIndex: number) => {
     setIssueSelection((current) => (current ? { ...current, targetIndex } : null));
@@ -95,6 +101,7 @@ function App() {
       }
       currentFileRef.current = path;
       epochRef.current++;
+      setBonesVisible(false);
       setAsset(null);
       setValidation(null);
       inspectionSource.current = null;
@@ -262,6 +269,7 @@ function App() {
   );
 
   const handleError = useCallback((err: Error) => {
+    setBonesVisible(false);
     setError(err.message);
     setAsset(null);
     setValidation(null);
@@ -380,11 +388,20 @@ function App() {
           filePath={filePath}
           onModelLoaded={handleModelLoaded}
           onError={handleError}
+          bonesVisible={bonesVisible}
           issueSelection={issueSelection}
           onClearIssue={clearIssue}
         />
       ) : null,
-    [filePath, handleModelLoaded, handleError, loadAttempt, issueSelection, clearIssue]
+    [
+      filePath,
+      handleModelLoaded,
+      handleError,
+      loadAttempt,
+      issueSelection,
+      clearIssue,
+      bonesVisible,
+    ]
   );
 
   return (
@@ -485,6 +502,8 @@ function App() {
           validation={validation}
           viewerRef={viewerRef}
           assetPath={filePath}
+          onBonesVisibleChange={toggleBones}
+          bonesVisible={bonesVisible}
           issueSelection={issueSelection}
           onInspectIssue={selectIssue}
           onSelectIssueTarget={selectIssueTarget}
