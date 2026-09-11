@@ -163,6 +163,8 @@ Interactive and batch validation share the same pipeline. Overall priority is Ne
 
 ### Locate inspection findings
 
+- The reference grid is off by default. Toggle it with `Grid` in the normal preview; finding focus temporarily hides it and restores the previous setting when cleared.
+
 - Click `Locate in model` to focus the camera and mark affected edges, triangles, or meshes in amber.
 - Navigate affected objects in the details panel and inspect their names, counts, materials, and texture bindings.
 - `Show resource details` lists actual failed paths without guessing ownership.

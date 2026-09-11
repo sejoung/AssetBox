@@ -9,6 +9,9 @@ interface ViewerToolbarProps {
   onBgModeChange: (mode: BgMode) => void;
   hasModel: boolean;
   onFocusModel?: () => void;
+  gridVisible?: boolean;
+  gridDisabled?: boolean;
+  onGridChange?: (visible: boolean) => void;
 }
 
 const VIEW_MODES: { mode: ViewMode; label: string; shortcut: string; icon: string }[] = [
@@ -63,6 +66,9 @@ export function ViewerToolbar({
   onBgModeChange,
   hasModel,
   onFocusModel,
+  gridVisible = false,
+  gridDisabled = false,
+  onGridChange,
 }: ViewerToolbarProps) {
   if (!hasModel) return null;
   return (
@@ -96,6 +102,19 @@ export function ViewerToolbar({
         {onFocusModel && (
           <button className="ui-button" onClick={onFocusModel} title="Fit model to view (F)">
             Fit model <kbd>F</kbd>
+          </button>
+        )}
+        {onGridChange && (
+          <button
+            className="ui-button"
+            aria-pressed={gridVisible}
+            disabled={gridDisabled}
+            onClick={() => onGridChange(!gridVisible)}
+            title={
+              gridDisabled ? "Grid is hidden while inspecting a finding" : "Toggle reference grid"
+            }
+          >
+            Grid
           </button>
         )}
         <div className="background-picker" role="group" aria-label="Background color">

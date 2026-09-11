@@ -12,3 +12,10 @@ export const BG_COLORS: Record<BgMode, string> = {
   neutral: "#404040",
   light: "#d0d0d0",
 };
+
+/** Neutral reference lines, separate from geometry diagnostic colors. */
+export const GRID_COLORS: Record<BgMode, { cell: string; section: string }> = {
+  dark: { cell: "#657084", section: "#8b97aa" },
+  neutral: { cell: "#8c8c8c", section: "#b0b0b0" },
+  light: { cell: "#838383", section: "#626262" },
+};

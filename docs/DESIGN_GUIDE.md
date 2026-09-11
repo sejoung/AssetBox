@@ -73,6 +73,7 @@ AssetBox 데스크톱 앱의 화면을 추가하거나 수정할 때 사용하�
 - [ReportButton](../src/components/ReportButton.tsx)과 [ThumbnailButton](../src/components/ThumbnailButton.tsx)의 저장 성공·실패 상태도 위의 밝은 채움색을 사용하며, 글자는 어두운 `#111827`입니다.
 - Three.js의 노멀·UV·밀도 시각화 색은 진단 의미를 전달하는 색입니다. UI 강조색 변경만을 이유로 함께 바꾸지 않습니다.
 - [overlayStyle.ts](../src/lib/overlayStyle.ts)의 `BG_COLORS`는 캔버스 배경용입니다. `dark`, `neutral`, `light` 전환은 앱 전체 테마를 바꾸지 않습니다.
+- 바닥 그리드는 기본으로 숨기고 `Grid` 버튼으로 켭니다. 검사 위치 강조 중에는 자동으로 숨기며, 강조를 해제하면 이전 설정을 복원합니다. 그리드의 중립색은 같은 파일의 `GRID_COLORS`에서 배경별로 정의합니다. UV 검사 무늬와는 별개이며 썸네일에는 포함하지 않습니다.
 
 오버레이를 추가할 때는 `OVERLAY_BG`, `OVERLAY_BORDER`, `OVERLAY_BACKDROP`을 재사용합니다. 현재 blur는 20px이며, 가독성은 충분한 배경 불투명도와 함께 확보합니다.
 

@@ -21,6 +21,7 @@ import {
   OVERLAY_BORDER,
   OVERLAY_BACKDROP,
   BG_COLORS,
+  GRID_COLORS,
   type BgMode,
 } from "../lib/overlayStyle";
 
@@ -591,7 +592,13 @@ function ModelDisplay({
 
 // ── Scene grid ──
 
-function SceneGrid({ gridRef }: { gridRef: React.MutableRefObject<THREE.Object3D | null> }) {
+function SceneGrid({
+  gridRef,
+  bgMode,
+}: {
+  gridRef: React.MutableRefObject<THREE.Object3D | null>;
+  bgMode: BgMode;
+}) {
   return (
     <group ref={gridRef}>
       <Grid
@@ -600,10 +607,10 @@ function SceneGrid({ gridRef }: { gridRef: React.MutableRefObject<THREE.Object3D
         fadeStrength={3}
         cellSize={0.5}
         cellThickness={0.5}
-        cellColor="#2a2a4a"
+        cellColor={GRID_COLORS[bgMode].cell}
         sectionSize={2}
         sectionThickness={1}
-        sectionColor="#3a3a5a"
+        sectionColor={GRID_COLORS[bgMode].section}
       />
     </group>
   );
@@ -621,12 +628,16 @@ function ScreenshotHelper({
   const { gl, scene, camera } = useThree();
 
   screenshotRef.current = () => {
-    if (gridRef.current) gridRef.current.visible = false;
-    gl.render(scene, camera);
-    const dataUrl = gl.domElement.toDataURL("image/png");
-    if (gridRef.current) gridRef.current.visible = true;
-    gl.render(scene, camera);
-    return dataUrl;
+    const grid = gridRef.current;
+    const wasVisible = grid?.visible ?? false;
+    try {
+      if (grid) grid.visible = false;
+      gl.render(scene, camera);
+      return gl.domElement.toDataURL("image/png");
+    } finally {
+      if (grid) grid.visible = wasVisible;
+      gl.render(scene, camera);
+    }
   };
 
   return null;
@@ -710,6 +721,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
   const [viewMode, setViewMode] = useState<ViewMode>("default");
   const [activeViewMode, setActiveViewMode] = useState<ViewMode>("default");
   const [bgMode, setBgMode] = useState<BgMode>("dark");
+  const [showGrid, setShowGrid] = useState(false);
   const [flippedInfo, setFlippedInfo] = useState<FlippedNormalInfo | null>(null);
   const [retopoInfo, setRetopoInfo] = useState<RetopoDiagInfo | null>(null);
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
@@ -908,7 +920,7 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
             <Environment preset="studio" background={false} />
           </Suspense>
 
-          <SceneGrid gridRef={gridRef} />
+          {showGrid && !selectedIssue && <SceneGrid gridRef={gridRef} bgMode={bgMode} />}
           <ScreenshotHelper screenshotRef={screenshotRef} gridRef={gridRef} />
 
           <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
@@ -1140,6 +1152,9 @@ export const Viewer3D = forwardRef<Viewer3DHandle, Viewer3DProps>(function Viewe
         onBgModeChange={setBgMode}
         hasModel={!!model}
         onFocusModel={handleFocusModel}
+        gridVisible={showGrid && !selectedIssue}
+        gridDisabled={!!selectedIssue}
+        onGridChange={setShowGrid}
       />
 
       <KeyboardHandler onViewMode={handleViewMode} onFocusModel={handleFocusModel} />
